@@ -295,8 +295,6 @@ def get_VACF_VDOS(path, DiffTypeName=None, unit='meV'):
 
         np.savetxt(f'{path}/VACF{name}.dat', np.column_stack((xVACF, yVACF)))
         np.savetxt(f'{path}/VDOS{name}.dat', np.column_stack((xVDOS, yVDOS)))
-
-    plt.suptitle(f'VDOS ({compound})')
     plt.show()
 
 
@@ -425,8 +423,6 @@ def get_diffusion_coefficient(path, DiffTypeName=None):
 
         ax[image_index].set_title(title)
         ax[image_index].legend(loc='best')
-
-    plt.suptitle(compound)
     plt.show()
 
     mean_NonDiff_msd /= n_NonDiff
