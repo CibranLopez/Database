@@ -157,9 +157,8 @@ def linear_function(x, y_0, coef_D):
 
 def get_VACF_VDOS(path, DiffTypeName=None, unit='meV'):
     """
-    Velocity Density Of States from VAF.
-    Velocity Auto-Correlation Function. It is the sum over all atoms and dimensions of the correlation of velocities
-    divided by the square sum of the velociy. Depending on the type of atom we select one part of the tensor or another.
+    Velocity Density Of States from VAF. It is the sum over all atoms and dimensions of the correlation of velocities
+    divided by the square sum of the velocity. Depending on the type of atom we select one part of the tensor or another.
     Velocity Auto-correlation Function tensor (correlation of the velocity of each particle in each dimension
     with itself), from which we may compute VAF.
     """
@@ -299,6 +298,12 @@ def get_VACF_VDOS(path, DiffTypeName=None, unit='meV'):
 
 
 def get_vibrational_properties(path, DiffTypeName=None):
+    """
+    Extracts temperature from a simple summary file.
+    Extracts composition and concentration from the POSCAR.
+    The vibrational properties are obtained calling get_VACF_VDOS with the VDOS data.
+    """
+
     # Temperature of simulation
 
     with open(f'{path}/Summary.dat', 'r') as summary_file:
@@ -334,10 +339,14 @@ def get_vibrational_properties(path, DiffTypeName=None):
         getVPROP(path, VDOS_data[:, 0], VDOS_data[:, 1], temperature, atoms, indexes)
 
 
-def get_mean_square_displacement(path):
-    system(f'cp Mean_square_displacement {path}')
+def get_mean_square_displacement(path_to_msd):
+    """
+    Executes the Mean Square Displacement's C implementation.
+    """
+
+    system(f'cp Mean_square_displacement {path_to_msd}')
     current_dir = getcwd()
-    chdir(path)
+    chdir(path_to_msd)
     system(f'./Mean_square_displacement')
     chdir(current_dir)
 
@@ -352,7 +361,6 @@ def get_diffusion_coefficient(path, DiffTypeName=None):
     with open(f'{path}/POSCAR', 'r') as POSCAR_file:
         POSCAR_lines = POSCAR_file.readlines()
 
-    compound      = POSCAR_lines[0][:-1]
     composition   = POSCAR_lines[5].split()
     concentration = np.array(POSCAR_lines[6].split(), dtype=int)
     n_components  = len(composition)
@@ -431,3 +439,46 @@ def get_diffusion_coefficient(path, DiffTypeName=None):
     write(path, 30, 'y_0:',                y_0_array,    n_components)
     write(path, 31, 'D:',                  coef_D_array, n_components)
     write(path, 32, 'Non-diffusive msd:', mean_NonDiff_msd)
+
+
+def get_band_gap(path):
+    """
+    """
+
+
+def get_vacancy_energy(path):
+    """
+    """
+
+
+def get_macroscopic_dielectric_constant(path):
+    """
+    """
+
+
+def get_Born_effective_charge(path):
+    """
+    """
+
+
+def get_first_optical_phonon_mode(path_to_OUTCAR):
+    """
+    First (smallest) optical phonon frequency: fourth-smallest phonon frequency (the previous three ones are acoustic).
+    """
+
+    # Importing the OUTCAR file
+
+    with open(f'{path_to_OUTCAR}/OUTCAR', 'r') as OUTCAR_file:
+        OUTCAR_lines = OUTCAR_file.readlines()
+
+    # Checking for the lines with imaginary (negative) phonon frequencies
+
+    phonon_frequencies = []
+    for line in OUTCAR_lines:
+        try:
+            split_line = line.split()
+            if (split_line[1] == 'f' | split_line[1] == 'f/i='):
+                phonon_frequencies.append([float(split_line[-2])])
+        except IndexError:
+            pass
+    return np.sort(phonon_frequencies)[3]
