@@ -117,12 +117,10 @@ def getVPROP(path, omega_data, rho_omega_data, temperature, name, indexes):
 # Diffusion coefficient
 
 
-def getDiff(composition, concentration, DiffTypeName=None):
+def obtain_diffusive_information(composition, concentration, DiffTypeName=None):
     """
-    Gets the diffusive and non-diffusive elements. The data is stored in the class.
-    Various diffusive elements are allowedThis
-    assumes that there is only one diffusive element except for the combinations I-Br, and that
-    in this latter case the follow each other.
+    Gets the diffusive and non-diffusive elements.
+    Various diffusive elements are allowed. In that case, they shall be specified in DiffTypeName.
     """
 
     if not DiffTypeName:
@@ -214,8 +212,8 @@ def get_VACF_VDOS(path, DiffTypeName=None, unit='meV'):
 
     # Calculating the diffusive and non-diffusive elements
 
-    DiffTypeName, NonDiffTypeName, diffusion_information = getDiff(composition, concentration,
-                                                                   DiffTypeName=DiffTypeName)
+    DiffTypeName, NonDiffTypeName, diffusion_information = obtain_diffusive_information(composition, concentration,
+                                                                                        DiffTypeName=DiffTypeName)
 
     simulated_time = np.arange(n_iter - 1) * time_step
     xVACF = 1e-3 * simulated_time
@@ -321,8 +319,8 @@ def get_vibrational_properties(path, DiffTypeName=None):
 
     # Calculating the diffusive and non-diffusive elements
 
-    DiffTypeName, NonDiffTypeName, diffusion_information = getDiff(composition, concentration,
-                                                                   DiffTypeName=DiffTypeName)
+    DiffTypeName, NonDiffTypeName, diffusion_information = obtain_diffusive_information(composition, concentration,
+                                                                                        DiffTypeName=DiffTypeName)
 
     indexes = np.array([14, 11, 17, 20, 23, 26], dtype=int)
     atoms_types = ['all atoms', 'diffusive atoms', 'non-diffusive atoms']
@@ -367,8 +365,8 @@ def get_diffusion_coefficient(path, DiffTypeName=None):
 
     # Calculating the diffusive and non-diffusive elements
 
-    DiffTypeName, _, diffusion_information = getDiff(composition, concentration,
-                                                                   DiffTypeName=DiffTypeName)
+    DiffTypeName, _, diffusion_information = obtain_diffusive_information(composition, concentration,
+                                                                          DiffTypeName=DiffTypeName)
 
     y_0_array    = []
     coef_D_array = []
