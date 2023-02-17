@@ -74,17 +74,20 @@ def calculate_entropy(omega, temperature):
 
 def getVPROP(path, omega_data, rho_omega_data, temperature, name, indexes):
     [f_cut_off_line, f_line, hpe_line, cvhc_line, hfe_line, entropy_line] = indexes
-
+    
+    #if not path.exists(f'{path}/Summary.dat'):
+    #    mkdir(f'{path}/Summary.dat')
+    
     # Until 30 meV
 
     cut_off = np.where(omega_data <= 30)[0][-1]
     integral = normalized_trapezoidal_integral(omega_data[:cut_off], omega_data[:cut_off], rho_omega_data[:cut_off])
-    write(path, f_cut_off_line, f'Mean frequency (cut-off 30meV, {name}):', integral)
+    #write(path, f_cut_off_line, f'Mean frequency (cut-off 30meV, {name}):', integral)
 
     # Until maximum energy available
 
     integral = normalized_trapezoidal_integral(omega_data, omega_data, rho_omega_data)
-    write(path, f_line, f'Mean frequency {name}):', integral)
+    #write(path, f_line, f'Mean frequency {name}):', integral)
 
     omega_data = omega_data[1:]
     rho_omega_data = rho_omega_data[1:]
@@ -93,25 +96,25 @@ def getVPROP(path, omega_data, rho_omega_data, temperature, name, indexes):
 
     harmonic_phonon_energy = calculate_harmonic_phonon_energy(omega_data, temperature)
     integral = normalized_trapezoidal_integral(omega_data, harmonic_phonon_energy, rho_omega_data)
-    write(path, hpe_line, f'Harmonic phonon energy ({name}):', integral)
+    #write(path, hpe_line, f'Harmonic phonon energy ({name}):', integral)
 
     # Constant volume heat capacity
 
     constant_volume_heat_capacity = calculate_constant_volume_heat_capacity(omega_data, temperature)
     integral = normalized_trapezoidal_integral(omega_data, constant_volume_heat_capacity, rho_omega_data)
-    write(path, cvhc_line, f'Constant volume heat capacity ({name}):', integral)
+    #write(path, cvhc_line, f'Constant volume heat capacity ({name}):', integral)
 
     # Helmholtz free energy
 
     helmholtz_free_energy = calculate_helmholtz_free_energy(omega_data, temperature)
     integral = normalized_trapezoidal_integral(omega_data, helmholtz_free_energy, rho_omega_data)
-    write(path, hfe_line, f'Helmholtz free energy ({name}):', integral)
+    #write(path, hfe_line, f'Helmholtz free energy ({name}):', integral)
 
     # Entropy
 
     entropy = calculate_entropy(omega_data, temperature)
     integral = normalized_trapezoidal_integral(omega_data, entropy, rho_omega_data)
-    write(path, entropy_line, f'Entropy ({name}):', integral)
+    #write(path, entropy_line, f'Entropy ({name}):', integral)
 
 
 # Diffusion coefficient
@@ -162,12 +165,21 @@ def get_VACF_VDOS(path, DiffTypeName=None, unit='meV'):
     """
 
     # Intervals step and number of simulation steps between records
+    
+    with open(f'{path}/INCAR', 'r') as INCAR_file:
+        INCAR_lines = INCAR_file.readlines()
 
-    with open(f'{path}/Summary.dat', 'r') as summary_file:
-        summary_lines = summary_file.readlines()
+    for line in INCAR_lines:
+        split_line = line.split('=')
+        if len(split_line) > 1:  # Skipping empty lines
+            label = split_line[0].split()[0]
+            value = split_line[1].split()[0]
 
-    delta_t = float(summary_lines[4].split(': ')[1][:-1])
-    n_steps = float(summary_lines[5].split(': ')[1][:-1])
+            if   label == 'POTIM':  delta_t = float(value)
+            elif label == 'NBLOCK': n_steps = float(value)
+
+    # Time step between consecutive XDATCAR configurations
+
     time_step = n_steps * delta_t
 
     # Importing the XDATCAR file
@@ -295,19 +307,12 @@ def get_VACF_VDOS(path, DiffTypeName=None, unit='meV'):
     plt.show()
 
 
-def get_vibrational_properties(path, DiffTypeName=None):
+def get_vibrational_properties(path, temperature, DiffTypeName=None):
     """
     Extracts temperature from a simple summary file.
     Extracts composition and concentration from the POSCAR.
     The vibrational properties are obtained calling get_VACF_VDOS with the VDOS data.
     """
-
-    # Temperature of simulation
-
-    with open(f'{path}/Summary.dat', 'r') as summary_file:
-        summary_lines = summary_file.readlines()
-
-    temperature = float(summary_lines[9].split(': ')[1][:-1])
 
     # Importing the POSCAR file
 
@@ -342,14 +347,14 @@ def get_mean_square_displacement(path_to_msd):
     Executes the Mean Square Displacement's C implementation.
     """
 
-    system(f'cp Mean_square_displacement {path_to_msd}')
+    system(f'cp Mean_square_displacement.exe {path_to_msd}')
     current_dir = getcwd()
     chdir(path_to_msd)
-    system(f'./Mean_square_displacement')
+    system(f'./Mean_square_displacement.exe')
     chdir(current_dir)
 
 
-def get_diffusion_coefficient(path, DiffTypeName=None):
+def get_diffusion_coefficient(path, initial_point, DiffTypeName=None):
     """
     The initial point for the linear fit is selected as the one that minimizes uncertainty of the diffusion coefficient.
     """
@@ -377,7 +382,7 @@ def get_diffusion_coefficient(path, DiffTypeName=None):
 
     # Generating the diffusion coefficients for each component
 
-    fig, ax = plt.subplots(rows, 2, figsize=(5 * rows, 5))
+    fig, ax = plt.subplots(rows, 2, figsize=(5, 5 * rows))
     for i in range(n_components):
         element = composition[i]
 
@@ -401,7 +406,9 @@ def get_diffusion_coefficient(path, DiffTypeName=None):
 
         # Implementing the fit with lowest uncertainty in the diffusion coefficient
 
-        initial_point = np.argmin(pcov_array)
+        #initial_point = np.argmin(pcov_array)
+        if initial_point is None:
+            initial_point = int(0.1 * len(x))
         print(f'Initial point: {initial_point}')
 
         x_fit = x[initial_point:]
@@ -434,9 +441,9 @@ def get_diffusion_coefficient(path, DiffTypeName=None):
     mean_NonDiff_msd /= n_NonDiff
     print(f'Mean non-diffusive msd: {mean_NonDiff_msd}')
 
-    write(path, 30, 'y_0:',                y_0_array,    n_components)
-    write(path, 31, 'D:',                  coef_D_array, n_components)
-    write(path, 32, 'Non-diffusive msd:', mean_NonDiff_msd)
+    #write(path, 30, 'y_0:',                y_0_array,    n_components)
+    #write(path, 31, 'D:',                  coef_D_array, n_components)
+    #write(path, 32, 'Non-diffusive msd:', mean_NonDiff_msd)
 
 
 def get_band_gap(path):

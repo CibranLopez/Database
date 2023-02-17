@@ -116,7 +116,7 @@ int main() {
     while (getline(&data_string, &buffer_size, XDATCAR) != EOF) {
         ncon += 1;
         
-        if (ncon == 5) {
+        if (ncon == 6) {
             token = strtok(data_string, " ");
             
             while (token != NULL){
@@ -128,7 +128,7 @@ int main() {
                 ExitError("When allocating memory for np", 2);
         }
         
-        if (ncon == 6) { // Reading number of particles.
+        if (ncon == 7) { // Reading number of particles.
             token = strtok(data_string, " ");
             
             for (i = 0; i < N_components; i++) {
@@ -148,7 +148,7 @@ int main() {
     printf("NPT: %u\n", np);
     printf("NCON: %u\n", ncon);
     
-    int nconcort = 0.5 * ncon, nposcor = 0.5 * ncon, ntimes = ncon - nconcort;
+    int nconcort = 0.25 * ncon, nposcor = 0.25 * ncon, ntimes = ncon - nconcort;
     long double rperf_x[np], rperf_y[np], rperf_z[np], rperfc_x[np], rperfc_y[np], rperfc_z[np], rdp[ncon], rd2p[ncon], bc[3][3], rposcor_x[ncon], rposcor_y[ncon], rposcor_z[ncon];
     long double *r_x, *r_y, *r_z, *rc_x, *rc_y, *rc_z;
     
@@ -176,7 +176,7 @@ int main() {
     
     rewind(XDATCAR);
     
-    for (i = 0; i < 6; i++) // For my specific case.
+    for (i = 0; i < 7; i++) // For my specific case.
         getline(&data_string, &buffer_size, XDATCAR);
     
     for (i = 0; i < ncon; i++) {
@@ -202,6 +202,7 @@ int main() {
     if ((POSCAR = fopen(POSCAR_file_name, "r")) == NULL)
         ExitError("POSCAR data file cannot be opened", 8);
     
+    getline(&data_string, &buffer_size, POSCAR);
     getline(&data_string, &buffer_size, POSCAR);
     long double scale = atof(strtok(data_string, " "));
     printf("Scale: %Lf\n", scale);
