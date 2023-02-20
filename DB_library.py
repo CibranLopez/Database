@@ -1,9 +1,10 @@
-import numpy as np
+import numpy             as np
 import matplotlib.pyplot as plt
-from os import system, getcwd, chdir
-from scipy.fftpack import fft, fftfreq
-from scipy.optimize import curve_fit
+import scipy.odr         as odr
 
+from os             import system, getcwd, chdir
+from scipy.fftpack  import fft, fftfreq
+from scipy.optimize import curve_fit
 
 k_B = 8.617333262145e-2  # meV / K
 
@@ -147,10 +148,6 @@ def obtain_diffusive_information(composition, concentration, DiffTypeName=None):
                 diffusion_information.append([TypeName_index, np.sum(concentration[:TypeName_index]),
                                               concentration[TypeName_index]])
     return DiffTypeName, NonDiffTypeName, diffusion_information
-
-
-def linear_function(x, y_0, coef_D):
-    return y_0 + 6 * coef_D * x
 
 
 # Main functionalities
@@ -354,6 +351,25 @@ def get_mean_square_displacement(path_to_msd):
     chdir(current_dir)
 
 
+def linear_function(x, y0, Dcoef):
+    return y0 + 6 * x * Dcoef
+
+
+def odr_linear_function(beta, x):
+    return beta[0] + 6 * x * beta[1] 
+
+
+def weighted_linear_regression(x, y, yerr): # Sen erro no eixo x.
+    linear = odr.Model(linear_function)
+    we = None
+    if yerr is not None:
+        we = 1./np.power(yerr,2)
+    mydata = odr.Data(x, y, we=we)
+    myodr = odr.ODR(mydata, linear, beta0=[1, 1e-5])
+    output = myodr.run()
+    return output
+
+
 def get_diffusion_coefficient(path, initial_point, DiffTypeName=None):
     """
     The initial point for the linear fit is selected as the one that minimizes uncertainty of the diffusion coefficient.
@@ -391,43 +407,39 @@ def get_diffusion_coefficient(path, initial_point, DiffTypeName=None):
 
         data = np.loadtxt(f'{path}/msd_{i}.dat')
 
-        x = data[:, 0]
-        y = data[:, 1]
-
-        # Looking for the best initial point
-
-        pcov_array = []
-        for k in range(len(x) - 2):
-            x_fit = x[k:]
-            y_fit = y[k:]
-
-            _, pcov = curve_fit(linear_function, x_fit, y_fit)
-            pcov_array.append(pcov[1, 1])
-
-        # Implementing the fit with lowest uncertainty in the diffusion coefficient
-
-        #initial_point = np.argmin(pcov_array)
+        x    = data[:, 0]
+        y    = data[:, 1]
+        yerr = data[:, 2]
+        
+        # Looking for the initial point
+        
+        #initial_point = 0.
         if initial_point is None:
-            initial_point = int(0.1 * len(x))
-        #print(f'Initial point: {initial_point}')
+            initial_point = int(0.1* len(x))
 
-        x_fit = x[initial_point:]
-        y_fit = y[initial_point:]
+        x_fit    = x[initial_point:]
+        y_fit    = y[initial_point:]
+        yerr_fit = y[initial_point:]
+        
+        _beta_, _std_beta_ = curve_fit(linear_function, x_fit, y_fit)
+        
+        #regression = weighted_linear_regression(x, y, yerr=yerr_fit)
+        #_beta_     = regression.beta
+        #_std_beta_ = regression.sd_beta
 
-        [y_0, coef_D], pcov = curve_fit(linear_function, x_fit, y_fit)
-
-        y_0_array.append(y_0)
-        coef_D_array.append(coef_D)
+        y_0_array.append(_beta_[0])
+        coef_D_array.append(_beta_[1])
 
         image_index = column
         if n_components > 2:
             image_index = (row, column)
-
-        ax[image_index].plot(x, y, '.', label='Data')
-        ax[image_index].plot(x_fit, linear_function(x_fit, y_0, coef_D), label=u'Linear fitting')
+        
+        ax[image_index].errorbar(x, y, yerr=yerr, label='Data')
+        ax[image_index].plot(x_fit, linear_function(x_fit, _beta_[0], _beta_[1]), label=u'Linear fitting')
 
         # Calculating the mean square displacement for the non-diffusive atoms
-        title = f'{element}: y_0 = {y_0:.3g}, D = {coef_D:.3g}'
+        
+        title = f'{element}: y_0 = {_beta_[0]:.3g}, D = {_beta_[1]:.3g}'
         
         if composition[i] not in DiffTypeName:
             n_NonDiff        += concentration[i]
