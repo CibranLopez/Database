@@ -382,7 +382,7 @@ def get_diffusion_coefficient(path, initial_point, DiffTypeName=None):
 
     # Generating the diffusion coefficients for each component
 
-    fig, ax = plt.subplots(rows, 2, figsize=(5, 5 * rows))
+    fig, ax = plt.subplots(rows, 2, figsize=(5 * 2, 5 * rows))
     for i in range(n_components):
         element = composition[i]
 
@@ -409,7 +409,7 @@ def get_diffusion_coefficient(path, initial_point, DiffTypeName=None):
         #initial_point = np.argmin(pcov_array)
         if initial_point is None:
             initial_point = int(0.1 * len(x))
-        print(f'Initial point: {initial_point}')
+        #print(f'Initial point: {initial_point}')
 
         x_fit = x[initial_point:]
         y_fit = y[initial_point:]
@@ -427,12 +427,11 @@ def get_diffusion_coefficient(path, initial_point, DiffTypeName=None):
         ax[image_index].plot(x_fit, linear_function(x_fit, y_0, coef_D), label=u'Linear fitting')
 
         # Calculating the mean square displacement for the non-diffusive atoms
-        if composition[i] in DiffTypeName:
-            title = f'{element}: y_0 = {y_0:.2g}, D = {coef_D:.2g}'
-        else:
+        title = f'{element}: y_0 = {y_0:.3g}, D = {coef_D:.3g}'
+        
+        if composition[i] not in DiffTypeName:
             n_NonDiff        += concentration[i]
             mean_NonDiff_msd += concentration[i] * np.mean(y_fit)
-            title = f'{element}: msd = {np.mean(y_fit):.2g}'
 
         ax[image_index].set_title(title)
         ax[image_index].legend(loc='best')
