@@ -83,11 +83,13 @@ def getVPROP(path, omega_data, rho_omega_data, temperature, name, indexes):
 
     cut_off = np.where(omega_data <= 30)[0][-1]
     integral = normalized_trapezoidal_integral(omega_data[:cut_off], omega_data[:cut_off], rho_omega_data[:cut_off])
+    w30 = integral
     #write(path, f_cut_off_line, f'Mean frequency (cut-off 30meV, {name}):', integral)
 
     # Until maximum energy available
 
     integral = normalized_trapezoidal_integral(omega_data, omega_data, rho_omega_data)
+    w = integral
     #write(path, f_line, f'Mean frequency {name}):', integral)
 
     omega_data = omega_data[1:]
@@ -97,25 +99,29 @@ def getVPROP(path, omega_data, rho_omega_data, temperature, name, indexes):
 
     harmonic_phonon_energy = calculate_harmonic_phonon_energy(omega_data, temperature)
     integral = normalized_trapezoidal_integral(omega_data, harmonic_phonon_energy, rho_omega_data)
+    hp = integral
     #write(path, hpe_line, f'Harmonic phonon energy ({name}):', integral)
 
     # Constant volume heat capacity
 
     constant_volume_heat_capacity = calculate_constant_volume_heat_capacity(omega_data, temperature)
     integral = normalized_trapezoidal_integral(omega_data, constant_volume_heat_capacity, rho_omega_data)
+    Cv = integral
     #write(path, cvhc_line, f'Constant volume heat capacity ({name}):', integral)
 
     # Helmholtz free energy
-
     helmholtz_free_energy = calculate_helmholtz_free_energy(omega_data, temperature)
     integral = normalized_trapezoidal_integral(omega_data, helmholtz_free_energy, rho_omega_data)
+    Fv = integral
     #write(path, hfe_line, f'Helmholtz free energy ({name}):', integral)
 
     # Entropy
 
     entropy = calculate_entropy(omega_data, temperature)
     integral = normalized_trapezoidal_integral(omega_data, entropy, rho_omega_data)
+    S = integral
     #write(path, entropy_line, f'Entropy ({name}):', integral)
+    return w30, w, hp, Cv, Fv, S
 
 
 # Diffusion coefficient
@@ -133,6 +139,8 @@ def obtain_diffusive_information(composition, concentration, DiffTypeName=None):
         for diff_component in ['Li', 'Na', 'Ag', 'Cu', 'Cl', 'I', 'Br', 'F', 'O']:
             if diff_component in composition:
                 DiffTypeName = [diff_component]
+                if (diff_component == 'I') and ('Br' in composition):
+                    DiffTypeName = ['I', 'Br']
                 break
 
     NonDiffTypeName = composition.copy()
@@ -323,9 +331,10 @@ def get_vibrational_properties(path, temperature, DiffTypeName=None):
 
     DiffTypeName, NonDiffTypeName, diffusion_information = obtain_diffusive_information(composition, concentration,
                                                                                         DiffTypeName=DiffTypeName)
-
+    print(DiffTypeName, NonDiffTypeName)
     indexes = np.array([14, 11, 17, 20, 23, 26], dtype=int)
     atoms_types = ['all atoms', 'diffusive atoms', 'non-diffusive atoms']
+    results = []
     for atoms in atoms_types:
         name = ''
         if   atoms == 'diffusive atoms':
@@ -336,7 +345,9 @@ def get_vibrational_properties(path, temperature, DiffTypeName=None):
             indexes += 1
 
         VDOS_data = np.loadtxt(f'{path}/VDOS{name}.dat')
-        getVPROP(path, VDOS_data[:, 0], VDOS_data[:, 1], temperature, atoms, indexes)
+        aux = getVPROP(path, VDOS_data[:, 0], VDOS_data[:, 1], temperature, atoms, indexes)
+        results.append(aux)
+    return results
 
 
 def get_mean_square_displacement(path_to_msd):
