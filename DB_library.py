@@ -385,7 +385,23 @@ def get_diffusion_coefficient(path, initial_point, DiffTypeName=None):
     """
     The initial point for the linear fit is selected as the one that minimizes uncertainty of the diffusion coefficient.
     """
+    
+    # Intervals step and number of simulation steps between records
+    
+    with open(f'{path}/INCAR', 'r') as INCAR_file:
+        INCAR_lines = INCAR_file.readlines()
 
+    for line in INCAR_lines:
+        split_line = line.split('=')
+        if len(split_line) > 1:  # Skipping empty lines
+            label = split_line[0].split()[0]
+            value = split_line[1].split()[0]
+
+            if   label == 'POTIM':  delta_t = float(value)
+            elif label == 'NBLOCK': n_steps = float(value)
+    
+    temporal_factor = delta_t * n_steps / 1000  # In pico-seconds
+    
     # Importing the POSCAR file
 
     with open(f'{path}/POSCAR', 'r') as POSCAR_file:
@@ -418,7 +434,7 @@ def get_diffusion_coefficient(path, initial_point, DiffTypeName=None):
 
         data = np.loadtxt(f'{path}/msd_{i}.dat')
 
-        x    = data[:, 0]
+        x    = data[:, 0] * temporal_factor
         y    = data[:, 1]
         yerr = data[:, 2]
         
@@ -426,8 +442,10 @@ def get_diffusion_coefficient(path, initial_point, DiffTypeName=None):
         
         #initial_point = 0.
         if initial_point is None:
-            initial_point = int(0.1* len(x))
-
+            initial_point = int(0.1 * len(x))
+        else:
+            initial_point = int(initial_point * len(x))
+        
         x_fit    = x[initial_point:]
         y_fit    = y[initial_point:]
         yerr_fit = y[initial_point:]
