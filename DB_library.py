@@ -4,7 +4,6 @@ import scipy.odr         as odr
 
 from os             import system, getcwd, chdir
 from scipy.fftpack  import fft, fftfreq
-from scipy.optimize import curve_fit
 
 k_B = 8.617333262145e-2  # meV / K
 
@@ -362,23 +361,20 @@ def get_mean_square_displacement(path_to_msd):
     chdir(current_dir)
 
 
-def linear_function(x, y0, Dcoef):
-    return y0 + 6 * x * Dcoef
-
-
-def odr_linear_function(beta, x):
+def linear_function(beta, x):
     return beta[0] + 6 * x * beta[1] 
 
 
-def weighted_linear_regression(x, y, yerr): # Sen erro no eixo x.
-    linear = odr.Model(linear_function)
-    we = None
-    if yerr is not None:
-        we = 1./np.power(yerr,2)
-    mydata = odr.Data(x, y, we=we)
-    myodr = odr.ODR(mydata, linear, beta0=[1, 1e-5])
-    output = myodr.run()
-    return output
+def weighted_regression(x, y, function, xerr=None, yerr=None, beta0=[1, 1e-5]):
+    model = odr.Model(function)
+    
+    wd = None; we = None
+    if xerr is not None: wd = 1./np.power(xerr,2)
+    if yerr is not None: we = 1./np.power(yerr,2)
+    
+    data = odr.Data(x, y, wd=wd, we=we)
+    odr_model = odr.ODR(data, model, beta0=beta0)
+    return odr_model.run()
 
 
 def get_diffusion_coefficient(path, initial_point, DiffTypeName=None):
@@ -440,7 +436,6 @@ def get_diffusion_coefficient(path, initial_point, DiffTypeName=None):
         
         # Looking for the initial point
         
-        #initial_point = 0.
         if initial_point is None:
             initial_point = int(0.1 * len(x))
         else:
@@ -450,11 +445,7 @@ def get_diffusion_coefficient(path, initial_point, DiffTypeName=None):
         y_fit    = y[initial_point:]
         yerr_fit = y[initial_point:]
         
-        _beta_, _std_beta_ = curve_fit(linear_function, x_fit, y_fit)
-        
-        #regression = weighted_linear_regression(x, y, yerr=yerr_fit)
-        #_beta_     = regression.beta
-        #_std_beta_ = regression.sd_beta
+        _beta_ = weighted_regression(x_fit, y_fit, linear_function, yerr=yerr_fit).beta
 
         y_0_array.append(_beta_[0])
         coef_D_array.append(_beta_[1])
@@ -464,7 +455,7 @@ def get_diffusion_coefficient(path, initial_point, DiffTypeName=None):
             image_index = (row, column)
         
         ax[image_index].errorbar(x, y, yerr=yerr, label='Data')
-        ax[image_index].plot(x_fit, linear_function(x_fit, _beta_[0], _beta_[1]), label=u'Linear fitting')
+        ax[image_index].plot(x_fit, linear_function(_beta_, x_fit), label=u'Linear fitting')
 
         # Calculating the mean square displacement for the non-diffusive atoms
         
