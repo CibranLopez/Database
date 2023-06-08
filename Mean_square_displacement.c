@@ -10,6 +10,7 @@
 #include <string.h>
 #include <math.h>
 #include <ctype.h>
+#include <stdbool.h>
 
 
 void ExitError(const char *miss, int errcode) {
@@ -94,6 +95,16 @@ void particle_i(int type, int ncon, int np, int N_components, int np_i[N_compone
     } fclose(msd);
 }
 
+bool valid_str(const char* str) {
+    // Checks whether the token is valid for counting the number of elements in the compound
+    size_t len = strlen(str);
+    for (size_t i = 0; i < len; i++) {
+        if (str[i] != '\n') {
+            return true;
+        }
+    }
+    return false;
+}
 
 /* THIS PROGRAM CALCULATES THE MEAN SQUARED DISPLACEMENT OF PARTICLES AND THE POSITION CORRELATION FUNCTION FROM XDATCAR FILE GENERATED WITH md.x (it corrects periodic boundary conditions) */
 int main() {
@@ -120,7 +131,9 @@ int main() {
             token = strtok(data_string, " ");
             
             while (token != NULL){
-                N_components += 1;
+                if (valid_str(token)) // It detected a token with valid elements
+                    N_components += 1;
+
                 token = strtok(NULL, " ");
             }
             
@@ -148,7 +161,7 @@ int main() {
     printf("NPT: %u\n", np);
     printf("NCON: %u\n", ncon);
     
-    int nconcort = 0.25 * ncon, nposcor = 0.25 * ncon, ntimes = ncon - nconcort;
+    int nconcort = 0.5 * ncon, nposcor = 0.5 * ncon, ntimes = ncon - nconcort;
     long double rperf_x[np], rperf_y[np], rperf_z[np], rperfc_x[np], rperfc_y[np], rperfc_z[np], rdp[ncon], rd2p[ncon], bc[3][3], rposcor_x[ncon], rposcor_y[ncon], rposcor_z[ncon];
     long double *r_x, *r_y, *r_z, *rc_x, *rc_y, *rc_z;
     

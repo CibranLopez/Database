@@ -2,47 +2,10 @@ import numpy             as np
 import matplotlib.pyplot as plt
 import scipy.odr         as odr
 
-from os             import system, getcwd, chdir
+from os             import system, getcwd, chdir, path
 from scipy.fftpack  import fft, fftfreq
 
 k_B = 8.617333262145e-2  # meV / K
-
-
-# Writing in a file
-
-
-def write(path, new_index, text, value, length=0, name='Summary.dat', mode='write'):
-    """
-    Writes in a specific position the given text (only value or array).
-
-    'write' mode replaces the specific line with the given one.
-    'insert' mode adds a new line in the specific position.
-    """
-
-    with open(f'{path}/{name}', 'r+') as file:
-        lines = file.readlines()
-        file.seek(0)
-
-        for i in range(new_index):
-            if i < len(lines): file.write(lines[i])
-            else:              file.write('\n')
-
-        if length:
-            file.write(text)
-            for i in range(length):
-                file.write(f' {value[i]}')
-        else:
-            file.write(f'{text} {value}')
-
-        aux = 0
-        if mode == 'insert':
-            aux = -1
-
-        file.write('\n')
-        for i in np.arange(new_index + 1 + aux, len(lines)):
-            file.write(lines[i])
-
-        file.truncate()
 
 
 # Vibrational properties
@@ -72,24 +35,19 @@ def calculate_entropy(omega, temperature):
     return omega / (2 * temperature * np.tanh(0.5 * auxiliary)) - k_B * np.log(2 * np.sinh(0.5 * auxiliary))
 
 
-def getVPROP(path, omega_data, rho_omega_data, temperature, name, indexes):
+def getVPROP(path_to_folder, omega_data, rho_omega_data, temperature, name, indexes):
     [f_cut_off_line, f_line, hpe_line, cvhc_line, hfe_line, entropy_line] = indexes
-    
-    #if not path.exists(f'{path}/Summary.dat'):
-    #    mkdir(f'{path}/Summary.dat')
     
     # Until 30 meV
 
     cut_off = np.where(omega_data <= 30)[0][-1]
     integral = normalized_trapezoidal_integral(omega_data[:cut_off], omega_data[:cut_off], rho_omega_data[:cut_off])
     w30 = integral
-    #write(path, f_cut_off_line, f'Mean frequency (cut-off 30meV, {name}):', integral)
 
     # Until maximum energy available
 
     integral = normalized_trapezoidal_integral(omega_data, omega_data, rho_omega_data)
     w = integral
-    #write(path, f_line, f'Mean frequency {name}):', integral)
 
     omega_data = omega_data[1:]
     rho_omega_data = rho_omega_data[1:]
@@ -99,27 +57,23 @@ def getVPROP(path, omega_data, rho_omega_data, temperature, name, indexes):
     harmonic_phonon_energy = calculate_harmonic_phonon_energy(omega_data, temperature)
     integral = normalized_trapezoidal_integral(omega_data, harmonic_phonon_energy, rho_omega_data)
     hp = integral
-    #write(path, hpe_line, f'Harmonic phonon energy ({name}):', integral)
 
     # Constant volume heat capacity
 
     constant_volume_heat_capacity = calculate_constant_volume_heat_capacity(omega_data, temperature)
     integral = normalized_trapezoidal_integral(omega_data, constant_volume_heat_capacity, rho_omega_data)
     Cv = integral
-    #write(path, cvhc_line, f'Constant volume heat capacity ({name}):', integral)
 
     # Helmholtz free energy
     helmholtz_free_energy = calculate_helmholtz_free_energy(omega_data, temperature)
     integral = normalized_trapezoidal_integral(omega_data, helmholtz_free_energy, rho_omega_data)
     Fv = integral
-    #write(path, hfe_line, f'Helmholtz free energy ({name}):', integral)
 
     # Entropy
 
     entropy = calculate_entropy(omega_data, temperature)
     integral = normalized_trapezoidal_integral(omega_data, entropy, rho_omega_data)
     S = integral
-    #write(path, entropy_line, f'Entropy ({name}):', integral)
     return w30, w, hp, Cv, Fv, S
 
 
@@ -160,7 +114,7 @@ def obtain_diffusive_information(composition, concentration, DiffTypeName=None):
 # Main functionalities
 
 
-def get_VACF_VDOS(path, DiffTypeName=None, unit='meV'):
+def get_VACF_VDOS(path_to_folder, DiffTypeName=None, unit='meV'):
     """
     Velocity Density Of States from VAF. It is the sum over all atoms and dimensions of the correlation of velocities
     divided by the square sum of the velocity. Depending on the type of atom we select one part of the tensor or another.
@@ -170,7 +124,7 @@ def get_VACF_VDOS(path, DiffTypeName=None, unit='meV'):
 
     # Intervals step and number of simulation steps between records
     
-    with open(f'{path}/INCAR', 'r') as INCAR_file:
+    with open(f'{path_to_folder}/INCAR', 'r') as INCAR_file:
         INCAR_lines = INCAR_file.readlines()
 
     for line in INCAR_lines:
@@ -188,7 +142,7 @@ def get_VACF_VDOS(path, DiffTypeName=None, unit='meV'):
 
     # Importing the XDATCAR file
 
-    XDATCAR_lines = [line for line in open(f'{path}/XDATCAR') if line.strip()]
+    XDATCAR_lines = [line for line in open(f'{path_to_folder}/XDATCAR') if line.strip()]
 
     compound = XDATCAR_lines[0][:-1]
     scale    = float(XDATCAR_lines[1])
@@ -306,12 +260,12 @@ def get_VACF_VDOS(path, DiffTypeName=None, unit='meV'):
         ax[i].set_ylabel('VDOS (arb units)')
         ax[i].legend(loc='best')
 
-        np.savetxt(f'{path}/VACF{name}.dat', np.column_stack((xVACF, yVACF)))
-        np.savetxt(f'{path}/VDOS{name}.dat', np.column_stack((xVDOS, yVDOS)))
+        np.savetxt(f'{path_to_folder}/VACF{name}.dat', np.column_stack((xVACF, yVACF)))
+        np.savetxt(f'{path_to_folder}/VDOS{name}.dat', np.column_stack((xVDOS, yVDOS)))
     plt.show()
 
 
-def get_vibrational_properties(path, temperature, DiffTypeName=None):
+def get_vibrational_properties(path_to_folder, temperature, DiffTypeName=None):
     """
     Extracts temperature from a simple summary file.
     Extracts composition and concentration from the POSCAR.
@@ -320,7 +274,7 @@ def get_vibrational_properties(path, temperature, DiffTypeName=None):
 
     # Importing the POSCAR file
 
-    with open(f'{path}/POSCAR', 'r') as POSCAR_file:
+    with open(f'{path_to_folder}/POSCAR', 'r') as POSCAR_file:
         POSCAR_lines = POSCAR_file.readlines()
 
     composition   = POSCAR_lines[5].split()
@@ -343,21 +297,27 @@ def get_vibrational_properties(path, temperature, DiffTypeName=None):
             name = '_' + '_'.join(NonDiffTypeName)
             indexes += 1
 
-        VDOS_data = np.loadtxt(f'{path}/VDOS{name}.dat')
-        aux = getVPROP(path, VDOS_data[:, 0], VDOS_data[:, 1], temperature, atoms, indexes)
+        VDOS_data = np.loadtxt(f'{path_to_folder}/VDOS{name}.dat')
+        aux = getVPROP(path_to_folder, VDOS_data[:, 0], VDOS_data[:, 1], temperature, atoms, indexes)
         results.append(aux)
     return results
 
 
-def get_mean_square_displacement(path_to_msd):
+def get_mean_square_displacement(path_to_msd, path_to_DBL='.'):
     """
     Executes the Mean Square Displacement's C implementation.
     """
-
-    system(f'cp Mean_square_displacement.exe {path_to_msd}')
+    
+    # Escape parentheses in the folder path
+    cp_path_to_msd = path_to_msd.replace('(', r'\(').replace(')', r'\)')
+    
+    # Copy msd executable
+    system(f'cp {path_to_DBL}/mean_square_displacement.exe {cp_path_to_msd}')
+    
+    # Run the executable in the destination folder and go back
     current_dir = getcwd()
     chdir(path_to_msd)
-    system(f'./Mean_square_displacement.exe')
+    system(f'./mean_square_displacement.exe')
     chdir(current_dir)
 
 
@@ -377,14 +337,14 @@ def weighted_regression(x, y, function, xerr=None, yerr=None, beta0=[1, 1e-5]):
     return odr_model.run()
 
 
-def get_diffusion_coefficient(path, initial_point, DiffTypeName=None):
+def get_diffusion_coefficient(path_to_msd, path_to_DBL='.', initial_point=None, DiffTypeName=None):
     """
     The initial point for the linear fit is selected as the one that minimizes uncertainty of the diffusion coefficient.
     """
     
     # Intervals step and number of simulation steps between records
     
-    with open(f'{path}/INCAR', 'r') as INCAR_file:
+    with open(f'{path_to_msd}/INCAR', 'r') as INCAR_file:
         INCAR_lines = INCAR_file.readlines()
 
     for line in INCAR_lines:
@@ -400,7 +360,7 @@ def get_diffusion_coefficient(path, initial_point, DiffTypeName=None):
     
     # Importing the POSCAR file
 
-    with open(f'{path}/POSCAR', 'r') as POSCAR_file:
+    with open(f'{path_to_msd}/POSCAR', 'r') as POSCAR_file:
         POSCAR_lines = POSCAR_file.readlines()
 
     composition   = POSCAR_lines[5].split()
@@ -418,7 +378,11 @@ def get_diffusion_coefficient(path, initial_point, DiffTypeName=None):
     mean_NonDiff_msd = 0
 
     rows = int(np.ceil(0.5 * n_components))
-
+    
+    # Generate msd information
+    if not path.exists(f'{path_to_msd}/msd_0.dat'):
+        get_mean_square_displacement(path_to_msd, path_to_DBL)
+    
     # Generating the diffusion coefficients for each component
 
     fig, ax = plt.subplots(rows, 2, figsize=(5 * 2, 5 * rows))
@@ -427,8 +391,8 @@ def get_diffusion_coefficient(path, initial_point, DiffTypeName=None):
 
         row = int(i / 2)
         column = int(i % 2)
-
-        data = np.loadtxt(f'{path}/msd_{i}.dat')
+        
+        data = np.loadtxt(f'{path_to_msd}/msd_{i}.dat')
 
         x    = data[:, 0] * temporal_factor
         y    = data[:, 1]
@@ -471,10 +435,6 @@ def get_diffusion_coefficient(path, initial_point, DiffTypeName=None):
 
     mean_NonDiff_msd /= n_NonDiff
     print(f'Mean non-diffusive msd: {mean_NonDiff_msd}')
-
-    #write(path, 30, 'y_0:',                y_0_array,    n_components)
-    #write(path, 31, 'D:',                  coef_D_array, n_components)
-    #write(path, 32, 'Non-diffusive msd:', mean_NonDiff_msd)
 
 
 def get_band_gap(path):
