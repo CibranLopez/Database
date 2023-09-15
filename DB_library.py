@@ -386,13 +386,22 @@ def get_diffusion_coefficient(path_to_msd, path_to_DBL='.', initial_point=None, 
     # Generating the diffusion coefficients for each component
 
     fig, ax = plt.subplots(rows, 2, figsize=(5 * 2, 5 * rows))
+    all_x = []
+    all_y = []
+    all_yerr = []
+    all_x_fit = []
+    all_y_fit = []
     for i in range(n_components):
         element = composition[i]
 
         row = int(i / 2)
         column = int(i % 2)
         
-        data = np.loadtxt(f'{path_to_msd}/msd_{i}.dat')
+        if path.exists(f'{path_to_msd}/msd_{i}.dat'):
+            data = np.loadtxt(f'{path_to_msd}/msd_{i}.dat')
+        else:
+            print(f'Hey, hope you know what you are doing, msd_{i} is missing!')
+            continue
 
         x    = data[:, 0] * temporal_factor
         y    = data[:, 1]
@@ -418,12 +427,20 @@ def get_diffusion_coefficient(path_to_msd, path_to_DBL='.', initial_point=None, 
         if n_components > 2:
             image_index = (row, column)
         
+        y_fit = linear_function(_beta_, x_fit)
         ax[image_index].errorbar(x, y, yerr=yerr, label='Data')
-        ax[image_index].plot(x_fit, linear_function(_beta_, x_fit), label=u'Linear fitting')
+        ax[image_index].plot(x_fit, y_fit, label=u'Linear fitting')
+        
+        all_x.append(x)
+        all_y.append(y)
+        all_yerr.append(yerr)
+        all_x_fit.append(x_fit)
+        all_y_fit.append(y_fit)
 
         # Calculating the mean square displacement for the non-diffusive atoms
         
-        title = f'{element}: y_0 = {_beta_[0]:.3g}, D = {_beta_[1]:.3g}'
+        #title = f'{element}: y_0 = {_beta_[0]:.3g}, D = {_beta_[1]:.3g}'
+        title = f'D = {_beta_[1]:.3g}'
         
         if composition[i] not in DiffTypeName:
             n_NonDiff        += concentration[i]
@@ -431,10 +448,12 @@ def get_diffusion_coefficient(path_to_msd, path_to_DBL='.', initial_point=None, 
 
         ax[image_index].set_title(title)
         ax[image_index].legend(loc='best')
+    plt.savefig(f'{path_to_msd}/diffusion_coefficient.eps', dpi=50)
     plt.show()
 
     mean_NonDiff_msd /= n_NonDiff
     print(f'Mean non-diffusive msd: {mean_NonDiff_msd}')
+    return all_x, all_y, all_yerr, all_x_fit, all_y_fit
 
 
 def get_band_gap(path):
