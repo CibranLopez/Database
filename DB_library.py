@@ -311,6 +311,15 @@ def get_mean_square_displacement(path_to_msd, path_to_DBL='.'):
     # Escape parentheses in the folder path
     cp_path_to_msd = path_to_msd.replace('(', r'\(').replace(')', r'\)')
     
+    # Check that msd executable file exists, else compile it
+    if not path.exists(f'{path_to_DBL}/mean_square_displacement.exe'):
+        # Check that msd C file exists
+        if not path.exists(f'{path_to_DBL}/Mean_square_displacement.c'):
+            sys.exit('Error: Mean_square_displacement.c file does not exist.')
+
+        # Compile executable
+        system(f'gcc Mean_square_displacement.c -o mean_square_displacement.exe -lm')
+
     # Copy msd executable
     system(f'cp {path_to_DBL}/mean_square_displacement.exe {cp_path_to_msd}')
     

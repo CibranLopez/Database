@@ -157,45 +157,30 @@ int main() {
         printf("n_%u = %u, ", i, np_i[i]);
     printf("N_T = %u\n", np);
     
-    ncon = (ncon - 7) / ((float) (np+1));
+    ncon = (ncon - 6) / ((float) (np+1));
     printf("NPT: %u\n", np);
     printf("NCON: %u\n", ncon);
     
     int nconcort = 0.5 * ncon, nposcor = 0.5 * ncon, ntimes = ncon - nconcort;
-    long double rperf_x[np], rperf_y[np], rperf_z[np], rperfc_x[np], rperfc_y[np], rperfc_z[np], bc[3][3];
-    long double *rdp, *rd2p, *rposcor_x, *rposcor_y, *rposcor_z, *r_x, *r_y, *r_z, *rc_x, *rc_y, *rc_z;
+    long double rperf_x[np], rperf_y[np], rperf_z[np], rperfc_x[np], rperfc_y[np], rperfc_z[np], rdp[ncon], rd2p[ncon], bc[3][3], rposcor_x[ncon], rposcor_y[ncon], rposcor_z[ncon];
+    long double *r_x, *r_y, *r_z, *rc_x, *rc_y, *rc_z;
     
-    if (((rdp = (long double*) malloc(ncon * sizeof(long double)))) == NULL)
-        ExitError("When allocating memory for rdp", 2);
-    
-    if (((rd2p = (long double*) malloc(ncon * sizeof(long double)))) == NULL)
-        ExitError("When allocating memory for rd2p", 2);
-    
-    if (((rposcor_x = (long double*) malloc(ncon * sizeof(long double)))) == NULL)
-        ExitError("When allocating memory for rposcor_x", 2);
-    
-    if (((rposcor_y = (long double*) malloc(ncon * sizeof(long double)))) == NULL)
-        ExitError("When allocating memory for rposcor_y", 2);
-    
-    if (((rposcor_z = (long double*) malloc(ncon * sizeof(long double)))) == NULL)
-        ExitError("When allocating memory for rposcor_z", 2);
-    
-    if (((r_x = (long double*) malloc(np*ncon * sizeof(long double)))) == NULL)
+    if (((r_x  = (long double*) malloc(np*ncon * sizeof(long double)))) == NULL)
         ExitError("When allocating memory for r_x", 2);
     
-    if (((r_y = (long double*) malloc(np*ncon * sizeof(long double)))) == NULL)
+    if (((r_y  = (long double*) malloc(np*ncon * sizeof(long double)))) == NULL)
         ExitError("When allocating memory for r_y", 3);
     
-    if (((r_z = (long double*) malloc(np*ncon * sizeof(long double)))) == NULL)
+    if (((r_z  = (long double*) malloc(np*ncon * sizeof(long double)))) == NULL)
         ExitError("When allocating memory for r_z", 4);
 
-    if (((rc_x = (long double*) malloc(np*ncon * sizeof(long double)))) == NULL)
+    if (((rc_x  = (long double*) malloc(np*ncon * sizeof(long double)))) == NULL)
         ExitError("When allocating memory for rc_x", 5);
 
-    if (((rc_y = (long double*) malloc(np*ncon * sizeof(long double)))) == NULL)
+    if (((rc_y  = (long double*) malloc(np*ncon * sizeof(long double)))) == NULL)
         ExitError("When allocating memory for rc_y", 6);
 
-    if (((rc_z = (long double*) malloc(np*ncon * sizeof(long double)))) == NULL)
+    if (((rc_z  = (long double*) malloc(np*ncon * sizeof(long double)))) == NULL)
         ExitError("When allocating memory for rc_z", 7);
     
     // -------------------------------------
@@ -203,46 +188,22 @@ int main() {
     // -------------------------------------
     
     rewind(XDATCAR);
+    
     for (i = 0; i < 7; i++) // For my specific case.
         getline(&data_string, &buffer_size, XDATCAR);
     
     for (i = 0; i < ncon; i++) {
         getline(&data_string, &buffer_size, XDATCAR);
-        
         for (j = 0; j < np; j++) {
-            while (getline(&data_string, &buffer_size, XDATCAR) != -1) {
-                // Initialize variables to zero (optional but recommended)
-                float number = 0.0f;
-                int count = 0;
-                char *ptr = data_string;
-                
-                while (*ptr != '\0') {
-                    if (count == 0) {
-                        if (sscanf(ptr, "%f", &number) == 1) {
-                            r_x[j*ncon + i] = number;
-                            count++;
-                        }
-                            
-                    } else if (count == 1) {
-                        if (sscanf(ptr, "%f", &number) == 1) {
-                            r_y[j*ncon + i] = number;
-                            count++;
-                        }
-                    } else if (count == 2) {
-                        if (sscanf(ptr, "%f", &number) == 1) {
-                            r_z[j*ncon + i] = number;
-                            count++;
-                        }
-                        break;
-                    }
-
-                    while (*ptr != '\0' && (*ptr == ' ' || *ptr == '\t'))
-                        ptr++;
-
-                    while (*ptr != '\0' && *ptr != ' ' && *ptr != '\t')
-                        ptr++;
-                }
-            }
+            getline(&data_string, &buffer_size, XDATCAR);
+            token = strtok(data_string, " ");
+            r_x[j*ncon + i] = atof(token);
+            
+            token = strtok(NULL, " ");
+            r_y[j*ncon + i] = atof(token);
+            
+            token = strtok(NULL, " ");
+            r_z[j*ncon + i] = atof(token);
         }
     }
     
@@ -252,7 +213,7 @@ int main() {
     
     FILE *POSCAR;
     if ((POSCAR = fopen(POSCAR_file_name, "r")) == NULL)
-        ExitError("POSCAR data file cannot be opened", 9);
+        ExitError("POSCAR data file cannot be opened", 8);
     
     getline(&data_string, &buffer_size, POSCAR);
     getline(&data_string, &buffer_size, POSCAR);
@@ -275,48 +236,31 @@ int main() {
     getline(&data_string, &buffer_size, POSCAR);
     
     for (i = 0; i < np; i++) {
-        while (getline(&data_string, &buffer_size, POSCAR) != -1) {
-            // Initialize variables to zero (optional but recommended)
-            float number = 0.0f;
-            int count = 0;
-            char *ptr = data_string;
-            
-            while (*ptr != '\0') {
-                if (count == 0) {
-                    if (sscanf(ptr, "%f", &number) == 1) {
-                        rperf_x[i]  = number;
-                        r_x[i*ncon] = number;
-                        count++;
-                    }
-                        
-                } else if (count == 1) {
-                    if (sscanf(ptr, "%f", &number) == 1) {
-                        rperf_y[i]  = number;
-                        r_y[i*ncon] = number;
-                        count++;
-                    }
-                } else if (count == 2) {
-                    if (sscanf(ptr, "%f", &number) == 1) {
-                        rperf_z[i]  = number;
-                        r_z[i*ncon] = number;
-                        count++;
-                    }
-                    break;
-                }
-
-                while (*ptr != '\0' && (*ptr == ' ' || *ptr == '\t'))
-                    ptr++;
-
-                while (*ptr != '\0' && *ptr != ' ' && *ptr != '\t')
-                    ptr++;
-            }
+        getline(&data_string, &buffer_size, POSCAR);
+        token = strtok(data_string, " ");
+        
+        if (isalpha(token[0])) {
+            i -= 1;
+            continue;
         }
+        
+        rperf_x[i] = atof(token);
+        
+        token = strtok(NULL, " ");
+        rperf_y[i] = atof(token);
+        
+        token = strtok(NULL, " ");
+        rperf_z[i] = atof(token);
+        
+        r_x[i*ncon] = rperf_x[i];
+        r_y[i*ncon] = rperf_y[i];
+        r_z[i*ncon] = rperf_z[i];
     }
     
     // ---------------------------------------------------------
     // Correct positions because of periodic boundary conditions
     // ---------------------------------------------------------
-        
+    
     long double rx_aux, ry_aux, rz_aux;
         
     for (j = 0; j < ncon-1; j++)
