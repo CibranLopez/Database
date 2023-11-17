@@ -362,7 +362,7 @@ def get_diffusion_coefficient(path_to_msd, path_to_DBL='.', initial_point=None, 
             label = split_line[0].split()[0]
             value = split_line[1].split()[0]
 
-            if   label == 'POTIM':  delta_t = float(value)  # In femto-seconds
+            if   label == 'POTIM':  delta_t = float(value)
             elif label == 'NBLOCK': n_steps = float(value)
     
     temporal_factor = delta_t * n_steps / 1000  # In pico-seconds
@@ -465,71 +465,6 @@ def get_diffusion_coefficient(path_to_msd, path_to_DBL='.', initial_point=None, 
     return all_x, all_y, all_yerr, all_x_fit, all_y_fit
 
 
-def get_diffusion_coefficient_values(path_to_msd, path_to_DBL='.', initial_point=None):
-    """
-    The initial point for the linear fit is selected as the one that minimizes uncertainty of the diffusion coefficient.
-    """
-
-    # Intervals step and number of simulation steps between records
-
-    with open(f'{path_to_msd}/INCAR', 'r') as INCAR_file:
-        INCAR_lines = INCAR_file.readlines()
-
-    for line in INCAR_lines:
-        split_line = line.split('=')
-        if len(split_line) > 1:  # Skipping empty lines
-            label = split_line[0].split()[0]
-            value = split_line[1].split()[0]
-
-            if label == 'POTIM':
-                delta_t = float(value)
-            elif label == 'NBLOCK':
-                n_steps = float(value)
-
-    temporal_factor = delta_t * n_steps / 1000  # In pico-seconds
-
-    # Importing the POSCAR file
-
-    with open(f'{path_to_msd}/POSCAR', 'r') as POSCAR_file:
-        POSCAR_lines = POSCAR_file.readlines()
-
-    composition  = POSCAR_lines[5].split()
-    n_components = len(composition)
-
-    # Generate msd information
-    if not path.exists(f'{path_to_msd}/msd_0.dat'):
-        get_mean_square_displacement(path_to_msd, path_to_DBL)
-
-    # Generating the diffusion coefficients for each component
-    coef_D_array = []
-    for i in range(n_components):
-        if path.exists(f'{path_to_msd}/msd_{i}.dat'):
-            data = np.loadtxt(f'{path_to_msd}/msd_{i}.dat')
-        else:
-            print(f'Hey, hope you know what you are doing, msd_{i} is missing!')
-            continue
-
-        x    = data[:, 0] * temporal_factor
-        y    = data[:, 1]
-        yerr = data[:, 2]
-
-        # Looking for the initial point
-
-        if initial_point is None:
-            initial_point = int(0.1 * len(x))
-        else:
-            initial_point = int(initial_point * len(x))
-
-        x_fit    = x[initial_point:]
-        y_fit    = y[initial_point:]
-        yerr_fit = yerr[initial_point:]
-
-        _beta_ = weighted_regression(x_fit, y_fit, linear_function, yerr=yerr_fit).beta
-
-        coef_D_array.append(_beta_[1])
-    return coef_D_array
-
-
 def get_band_gap(path):
     """
     """
@@ -571,3 +506,50 @@ def get_first_optical_phonon_mode(path_to_OUTCAR):
         except IndexError:
             pass
     return np.sort(phonon_frequencies)[3]
+
+
+def get_MSD(path_to_XDATCAR):
+    """
+    Velocity Density Of States from VAF. It is the sum over all atoms and dimensions of the correlation of velocities
+    divided by the square sum of the velocity. Depending on the type of atom we select one part of the tensor or another.
+    Velocity Auto-correlation Function tensor (correlation of the velocity of each particle in each dimension
+    with itself), from which we may compute VAF.
+    """
+
+    # Import the XDATCAR file
+    XDATCAR_lines = [line for line in open(f'{path_to_XDATCAR}/XDATCAR') if line.strip()]
+
+    # Extract initial XDATCAR data
+    compound = XDATCAR_lines[0][:-1]
+    scale    = float(XDATCAR_lines[1])
+
+    lattice_parameters = np.array([line.split() for line in XDATCAR_lines[2:5]], dtype=float)
+    lattice_parameters *= scale  # Use scaling
+
+    composition   = XDATCAR_lines[5].split()
+    concentration = np.array(XDATCAR_lines[6].split(), dtype=int)
+
+    n_atoms = np.sum(concentration)  # Number of particles within the simulation box
+
+    print_name = ' '.join(composition)
+    print(f'Compound: {compound}\nComposition: {print_name}\nConcentration: {concentration}')
+
+    # Shape the configurations data into the positions attribute
+    direct_coordinates = np.array([line.split() for line in XDATCAR_lines[8:] if not line.split()[0][0].isalpha()], dtype=float)
+
+    direct_coordinates = direct_coordinates.ravel().reshape((-1, n_atoms, 3))  # (n_conf, n_atoms, 3) tensor
+    n_conf = position.shape[0]  # Number of configurations or simulation steps
+
+    # Getting the variation in positions and reverting periodic boundary condition
+    dpos = np.diff(position, axis=0)
+    dpos[dpos > 0.5]  -= 1.0
+    dpos[dpos < -0.5] += 1.0
+    
+    cartesian_coordinates = np.zeros(n_conf, n_atoms, 3)
+    for i in range(n_conf - 1):
+        direct_coordinates[i+1] = direct_coordinates[i] + dpos[i]
+
+    # Getting the positions and variations in cell units
+
+    for i in range(n_iter - 1):
+        dpos[i] = np.dot(dpos[i], cell)
