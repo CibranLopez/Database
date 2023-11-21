@@ -362,7 +362,7 @@ def get_diffusion_coefficient(path_to_msd, path_to_DBL='.', initial_point=None, 
             label = split_line[0].split()[0]
             value = split_line[1].split()[0]
 
-            if   label == 'POTIM':  delta_t = float(value)
+            if   label == 'POTIM':  delta_t = float(value)  # In femto-seconds
             elif label == 'NBLOCK': n_steps = float(value)
     
     temporal_factor = delta_t * n_steps / 1000  # In pico-seconds
@@ -463,6 +463,72 @@ def get_diffusion_coefficient(path_to_msd, path_to_DBL='.', initial_point=None, 
     mean_NonDiff_msd /= n_NonDiff
     print(f'Mean non-diffusive msd: {mean_NonDiff_msd}')
     return all_x, all_y, all_yerr, all_x_fit, all_y_fit
+
+
+def get_diffusion_coefficient_values(path_to_msd, path_to_DBL='.', initial_point=None):
+    """
+    The initial point for the linear fit is selected as the one that minimizes uncertainty of the diffusion coefficient.
+    """
+
+    # Intervals step and number of simulation steps between records
+
+    with open(f'{path_to_msd}/INCAR', 'r') as INCAR_file:
+        INCAR_lines = INCAR_file.readlines()
+
+    for line in INCAR_lines:
+        split_line = line.split('=')
+        if len(split_line) > 1:  # Skipping empty lines
+            label = split_line[0].split()[0]
+            value = split_line[1].split()[0]
+
+            if label == 'POTIM':
+                delta_t = float(value)
+            elif label == 'NBLOCK':
+                n_steps = float(value)
+
+    temporal_factor = delta_t * n_steps / 1000  # In pico-seconds
+
+    # Importing the POSCAR file
+
+    with open(f'{path_to_msd}/POSCAR', 'r') as POSCAR_file:
+        POSCAR_lines = POSCAR_file.readlines()
+
+    composition  = POSCAR_lines[5].split()
+    n_components = len(composition)
+
+    # Generate msd information
+    if not path.exists(f'{path_to_msd}/msd_0.dat'):
+        get_mean_square_displacement(path_to_msd, path_to_DBL)
+
+    # Generating the diffusion coefficients for each component
+    coef_D_array = []
+    for i in range(n_components):
+        if path.exists(f'{path_to_msd}/msd_{i}.dat'):
+            data = np.loadtxt(f'{path_to_msd}/msd_{i}.dat')
+        else:
+            print(f'Hey, hope you know what you are doing, msd_{i} is missing!')
+            continue
+
+        x    = data[:, 0] * temporal_factor
+        y    = data[:, 1]
+        yerr = data[:, 2]
+
+        # Looking for the initial point
+
+        if initial_point is None:
+            initial_point = int(0.1 * len(x))
+        else:
+            initial_point = int(initial_point * len(x))
+
+        x_fit    = x[initial_point:]
+        y_fit    = y[initial_point:]
+        yerr_fit = yerr[initial_point:]
+
+        _beta_ = weighted_regression(x_fit, y_fit, linear_function, yerr=yerr_fit).beta
+        print(_beta_)
+
+        coef_D_array.append(_beta_[1])
+    return coef_D_array
 
 
 def get_band_gap(path):
