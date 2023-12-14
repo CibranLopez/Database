@@ -35,9 +35,7 @@ def calculate_entropy(omega, temperature):
     return omega / (2 * temperature * np.tanh(0.5 * auxiliary)) - k_B * np.log(2 * np.sinh(0.5 * auxiliary))
 
 
-def getVPROP(path_to_folder, omega_data, rho_omega_data, temperature, name, indexes):
-    [f_cut_off_line, f_line, hpe_line, cvhc_line, hfe_line, entropy_line] = indexes
-    
+def getVPROP(path_to_folder, omega_data, rho_omega_data, temperature):
     # Until 30 meV
 
     cut_off = np.where(omega_data <= 30)[0][-1]
@@ -265,41 +263,15 @@ def get_VACF_VDOS(path_to_folder, DiffTypeName=None, unit='meV'):
     plt.show()
 
 
-def get_vibrational_properties(path_to_folder, temperature, DiffTypeName=None):
+def get_vibrational_properties(path_to_folder, temperature):
     """
     Extracts temperature from a simple summary file.
     Extracts composition and concentration from the POSCAR.
     The vibrational properties are obtained calling get_VACF_VDOS with the VDOS data.
     """
-
-    # Importing the POSCAR file
-
-    with open(f'{path_to_folder}/POSCAR', 'r') as POSCAR_file:
-        POSCAR_lines = POSCAR_file.readlines()
-
-    composition   = POSCAR_lines[5].split()
-    concentration = np.array(POSCAR_lines[6].split(), dtype=int)
-
-    # Calculating the diffusive and non-diffusive elements
-
-    DiffTypeName, NonDiffTypeName, diffusion_information = obtain_diffusive_information(composition, concentration,
-                                                                                        DiffTypeName=DiffTypeName)
-    print(DiffTypeName, NonDiffTypeName)
-    indexes = np.array([14, 11, 17, 20, 23, 26], dtype=int)
-    atoms_types = ['all atoms', 'diffusive atoms', 'non-diffusive atoms']
-    results = []
-    for atoms in atoms_types:
-        name = ''
-        if   atoms == 'diffusive atoms':
-            name = '_' + '_'.join(DiffTypeName)
-            indexes += 1
-        elif atoms == 'non-diffusive atoms':
-            name = '_' + '_'.join(NonDiffTypeName)
-            indexes += 1
-
-        VDOS_data = np.loadtxt(f'{path_to_folder}/VDOS{name}.dat')
-        aux = getVPROP(path_to_folder, VDOS_data[:, 0], VDOS_data[:, 1], temperature, atoms, indexes)
-        results.append(aux)
+    
+    VDOS_data = np.loadtxt(f'{path_to_folder}/VDOS.dat')
+    results = getVPROP(path_to_folder, VDOS_data[:, 0], VDOS_data[:, 1], temperature)
     return results
 
 
