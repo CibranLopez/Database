@@ -465,42 +465,41 @@ def get_diffusion_coefficient_values(path_to_msd, path_to_DBL='.', initial_point
     with open(f'{path_to_msd}/POSCAR', 'r') as POSCAR_file:
         POSCAR_lines = POSCAR_file.readlines()
 
-    composition  = POSCAR_lines[5].split()
-    n_components = len(composition)
-
+    composition   = POSCAR_lines[5].split()
+    concentration = np.array(POSCAR_lines[6].split(), dtype=int)
+    n_components  = len(composition)
+    
+    _, _, diffusion_information = obtain_diffusive_information(composition, concentration)
+    
     # Generate msd information
     if not path.exists(f'{path_to_msd}/msd_0.dat'):
         get_mean_square_displacement(path_to_msd, path_to_DBL)
 
     # Generating the diffusion coefficients for each component
-    coef_D_array = []
-    for i in range(n_components):
-        if path.exists(f'{path_to_msd}/msd_{i}.dat'):
-            data = np.loadtxt(f'{path_to_msd}/msd_{i}.dat')
-        else:
-            print(f'Hey, hope you know what you are doing, msd_{i} is missing!')
-            continue
+    i = diffusion_information[0][0]
+    print(composition[i])
+    if path.exists(f'{path_to_msd}/msd_{i}.dat'):
+        data = np.loadtxt(f'{path_to_msd}/msd_{i}.dat')
+    else:
+        print(f'Hey, hope you know what you are doing, msd_{i} is missing!')
 
-        x    = data[:, 0] * temporal_factor
-        y    = data[:, 1]
-        yerr = data[:, 2]
+    x    = data[:, 0] * temporal_factor
+    y    = data[:, 1]
+    yerr = data[:, 2]
 
-        # Looking for the initial point
+    # Looking for the initial point
 
-        if initial_point is None:
-            initial_point = int(0.1 * len(x))
-        else:
-            initial_point = int(initial_point * len(x))
+    if initial_point is None:
+        initial_point = int(0.1 * len(x))
+    else:
+        initial_point = int(initial_point * len(x))
 
-        x_fit    = x[initial_point:]
-        y_fit    = y[initial_point:]
-        yerr_fit = yerr[initial_point:]
+    x_fit    = x[initial_point:]
+    y_fit    = y[initial_point:]
+    yerr_fit = yerr[initial_point:]
 
-        _beta_ = weighted_regression(x_fit, y_fit, linear_function, yerr=yerr_fit).beta
-        print(_beta_)
-
-        coef_D_array.append(_beta_[1])
-    return coef_D_array
+    _beta_ = weighted_regression(x_fit, y_fit, linear_function, yerr=yerr_fit).beta
+    return _beta_[1]
 
 
 def get_band_gap(path):
