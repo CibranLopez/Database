@@ -166,8 +166,10 @@ def get_VACF_VDOS(path_to_folder, DiffTypeName=None, unit='meV'):
     # Getting the variation in positions and applying periodic boundary condition
 
     dpos = np.diff(position, axis=0)
-    dpos[dpos > 0.5]  -= 1.0
-    dpos[dpos < -0.5] += 1.0
+    while np.any(dpos > 0.5):
+        dpos[dpos > 0.5]  -= 1.0
+    while np.any(dpos < -0.5):
+        dpos[dpos < -0.5] += 1.0
 
     # Getting the positions and variations in cell units
 
@@ -421,7 +423,7 @@ def get_diffusion_coefficient(path_to_msd, path_to_DBL='.', initial_point=None, 
         # Calculating the mean square displacement for the non-diffusive atoms
         
         #title = f'{element}: y_0 = {_beta_[0]:.3g}, D = {_beta_[1]:.3g}'
-        title = f'D = {_beta_[1]:.3g}'
+        title = f'{element}: D = {_beta_[1]:.5g}'
         
         if composition[i] not in DiffTypeName:
             n_NonDiff        += concentration[i]

@@ -265,36 +265,45 @@ int main() {
         
     for (j = 0; j < ncon-1; j++)
         for (i = 0; i < np; i++) {
-            rx_aux = r_x[i*ncon + j+1] - r_x[i*ncon + j];
-            ry_aux = r_y[i*ncon + j+1] - r_y[i*ncon + j];
-            rz_aux = r_z[i*ncon + j+1] - r_z[i*ncon + j];
+            int needs_correction;
             
-            if (fabsl(rx_aux) > 0.5) {
-                if (rx_aux < 0)
-                    for (k = j+1; k < ncon; k++)
-                        r_x[i*ncon + k] += 1.0;
-                else
-                    for (k = j+1; k < ncon; k++)
-                        r_x[i*ncon + k] -= 1.0;
-            }
+            do {
+                needs_correction = 0;
             
-            if (fabsl(ry_aux) > 0.5) {
-                if (ry_aux < 0)
-                    for (k = j+1; k < ncon; k++)
-                        r_y[i*ncon + k] += 1.0;
-                else
-                    for (k = j+1; k < ncon; k++)
-                        r_y[i*ncon + k] -= 1.0;
-            }
+                rx_aux = r_x[i*ncon + j+1] - r_x[i*ncon + j];
+                ry_aux = r_y[i*ncon + j+1] - r_y[i*ncon + j];
+                rz_aux = r_z[i*ncon + j+1] - r_z[i*ncon + j];
             
-            if (fabsl(rz_aux) > 0.5) {
-                if (rz_aux < 0)
-                    for (k = j+1; k < ncon; k++)
-                        r_z[i*ncon + k] += 1.0;
-                else
-                    for (k = j+1; k < ncon; k++)
-                        r_z[i*ncon + k] -= 1.0;
-            }
+                if (fabsl(rx_aux) > 0.5) {
+                    needs_correction = 1;
+                    if (rx_aux < 0)
+                        for (k = j+1; k < ncon; k++)
+                            r_x[i*ncon + k] += 1.0;
+                    else
+                        for (k = j+1; k < ncon; k++)
+                            r_x[i*ncon + k] -= 1.0;
+                }
+            
+                if (fabsl(ry_aux) > 0.5) {
+                    needs_correction = 1;
+                    if (ry_aux < 0)
+                        for (k = j+1; k < ncon; k++)
+                            r_y[i*ncon + k] += 1.0;
+                    else
+                        for (k = j+1; k < ncon; k++)
+                            r_y[i*ncon + k] -= 1.0;
+                }
+            
+                if (fabsl(rz_aux) > 0.5) {
+                    needs_correction = 1;
+                    if (rz_aux < 0)
+                        for (k = j+1; k < ncon; k++)
+                            r_z[i*ncon + k] += 1.0;
+                    else
+                        for (k = j+1; k < ncon; k++)
+                            r_z[i*ncon + k] -= 1.0;
+                }
+            } while (needs_correction);
         }
     
     // --------------------------------
