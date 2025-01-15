@@ -265,14 +265,14 @@ def get_VACF_VDOS(path_to_folder, DiffTypeName=None, unit='meV'):
     plt.show()
 
 
-def get_vibrational_properties(path_to_folder, temperature):
+def get_vibrational_properties(path_to_folder, temperature, data=''):
     """
     Extracts temperature from a simple summary file.
     Extracts composition and concentration from the POSCAR.
     The vibrational properties are obtained calling get_VACF_VDOS with the VDOS data.
     """
     
-    VDOS_data = np.loadtxt(f'{path_to_folder}/VDOS.dat')
+    VDOS_data = np.loadtxt(f'{path_to_folder}/VDOS{data}.dat')
     results = getVPROP(path_to_folder, VDOS_data[:, 0], VDOS_data[:, 1], temperature)
     return results
 
@@ -355,8 +355,6 @@ def get_diffusion_coefficient(path_to_msd, path_to_DBL='.', initial_point=None, 
     DiffTypeName, _, diffusion_information = obtain_diffusive_information(composition, concentration,
                                                                           DiffTypeName=DiffTypeName)
 
-    y_0_array    = []
-    coef_D_array = []
     n_NonDiff        = 0
     mean_NonDiff_msd = 0
 
@@ -369,11 +367,6 @@ def get_diffusion_coefficient(path_to_msd, path_to_DBL='.', initial_point=None, 
     # Generating the diffusion coefficients for each component
 
     fig, ax = plt.subplots(rows, 2, figsize=(5 * 2, 5 * rows))
-    all_x = []
-    all_y = []
-    all_yerr = []
-    all_x_fit = []
-    all_y_fit = []
     for i in range(n_components):
         element = composition[i]
 
@@ -385,49 +378,36 @@ def get_diffusion_coefficient(path_to_msd, path_to_DBL='.', initial_point=None, 
         else:
             print(f'Hey, hope you know what you are doing, msd_{i} is missing!')
             continue
-
-        x    = data[:, 0] * temporal_factor
-        y    = data[:, 1]
-        yerr = data[:, 2]
         
         # Looking for the initial point
-        
         if initial_point is None:
-            initial_point = int(0.1 * len(x))
+            t0 = int(0.1 * len(data))
         else:
-            initial_point = int(initial_point * len(x))
+            t0 = int(initial_point * len(data))
         
-        x_fit    = x[initial_point:]
-        y_fit    = y[initial_point:]
-        yerr_fit = y[initial_point:]
+        x    = data[t0:, 0] * temporal_factor
+        y    = data[t0:, 1]
+        yerr = data[t0:, 2]
         
-        _beta_ = weighted_regression(x_fit, y_fit, linear_function, yerr=yerr_fit).beta
-
-        y_0_array.append(_beta_[0])
-        coef_D_array.append(_beta_[1])
+        _beta_ = weighted_regression(x, y, linear_function, yerr=yerr).beta
 
         image_index = column
         if n_components > 2:
             image_index = (row, column)
         
-        y_fit = linear_function(_beta_, x_fit)
         ax[image_index].errorbar(x, y, yerr=yerr, label='Data')
-        ax[image_index].plot(x_fit, y_fit, label=u'Linear fitting')
-        
-        all_x.append(x)
-        all_y.append(y)
-        all_yerr.append(yerr)
-        all_x_fit.append(x_fit)
-        all_y_fit.append(y_fit)
+        ax[image_index].plot(x, linear_function(_beta_, x), label=u'Linear fitting')
 
         # Calculating the mean square displacement for the non-diffusive atoms
         
         #title = f'{element}: y_0 = {_beta_[0]:.3g}, D = {_beta_[1]:.3g}'
-        title = f'{element}: D = {_beta_[1]:.5g}'
+        title = f'{element}: D = {_beta_[1]}'
+        if element == 'O':
+            np.savetxt(f'{path_to_msd}/CoefD.txt', [_beta_[1]])
         
         if composition[i] not in DiffTypeName:
             n_NonDiff        += concentration[i]
-            mean_NonDiff_msd += concentration[i] * np.mean(y_fit)
+            mean_NonDiff_msd += concentration[i] * np.mean(y)
 
         ax[image_index].set_title(title)
         ax[image_index].legend(loc='best')
@@ -436,7 +416,6 @@ def get_diffusion_coefficient(path_to_msd, path_to_DBL='.', initial_point=None, 
 
     mean_NonDiff_msd /= n_NonDiff
     print(f'Mean non-diffusive msd: {mean_NonDiff_msd}')
-    return all_x, all_y, all_yerr, all_x_fit, all_y_fit
 
 
 def get_diffusion_coefficient_values(path_to_msd, path_to_DBL='.', initial_point=None):
