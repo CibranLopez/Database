@@ -286,21 +286,21 @@ def get_mean_square_displacement(path_to_msd, path_to_DBL='.'):
     cp_path_to_msd = path_to_msd.replace('(', r'\(').replace(')', r'\)')
     
     # Check that msd executable file exists, else compile it
-    if not path.exists(f'{path_to_DBL}/mean_square_displacement.exe'):
+    if not path.exists(f'{path_to_DBL}/msd.exe'):
         # Check that msd C file exists
         if not path.exists(f'{path_to_DBL}/Mean_square_displacement.c'):
             sys.exit('Error: Mean_square_displacement.c file does not exist.')
 
         # Compile executable
-        system(f'gcc Mean_square_displacement.c -o mean_square_displacement.exe -lm')
+        system(f'gcc Mean_square_displacement.c -o msd.exe -lm')
 
     # Copy msd executable
-    system(f'cp {path_to_DBL}/mean_square_displacement.exe {cp_path_to_msd}')
+    system(f'cp {path_to_DBL}/msd.exe {cp_path_to_msd}')
     
     # Run the executable in the destination folder and go back
     current_dir = getcwd()
     chdir(path_to_msd)
-    system(f'./mean_square_displacement.exe')
+    system(f'./msd.exe')
     chdir(current_dir)
 
 
@@ -380,9 +380,8 @@ def get_diffusion_coefficient(path_to_msd, path_to_DBL='.', initial_point=None, 
             continue
         
         # Looking for the initial point
-        if initial_point is None:
-            t0 = int(0.1 * len(data))
-        else:
+        t0 = int(0.1 * len(data))
+        if initial_point is not None:
             t0 = int(initial_point * len(data))
         
         x    = data[t0:, 0] * temporal_factor
@@ -411,7 +410,7 @@ def get_diffusion_coefficient(path_to_msd, path_to_DBL='.', initial_point=None, 
 
         ax[image_index].set_title(title)
         ax[image_index].legend(loc='best')
-    plt.savefig(f'{path_to_msd}/diffusion_coefficient.eps', dpi=50)
+    plt.savefig(f'{path_to_msd}/diffusion_coefficient.pdf', dpi=50, bbox_inches='tight')
     plt.show()
 
     mean_NonDiff_msd /= n_NonDiff
