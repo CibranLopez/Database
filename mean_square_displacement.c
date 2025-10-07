@@ -18,9 +18,10 @@ void ExitError(const char *miss, int errcode) {
     exit(errcode);
 }
 
-void particle_i(int type, int ncon, int np, int N_components, int np_i[N_components], int ntimes, long double scale, int nconcort, int nposcor, long double r_x[np*ncon], long double r_y[np*ncon], long double r_z[np*ncon], long double rperf_x[np], long double rperf_y[np], long double rperf_z[np], long double rperfc_x[np], long double rperfc_y[np], long double rperfc_z[np], long double rdp[ncon], long double rd2p[ncon], long double rc_x[np*ncon], long double rc_y[np*ncon], long double rc_z[np*ncon], long double bc[3][3], long double rposcor_x[ncon], long double rposcor_y[ncon], long double rposcor_z[ncon]) {
+void particle_i(int type, int ncon, int np, int N_components, int np_i[N_components], long double scale, long double r_x[np*ncon], long double r_y[np*ncon], long double r_z[np*ncon], long double rperf_x[np], long double rperf_y[np], long double rperf_z[np], long double rperfc_x[np], long double rperfc_y[np], long double rperfc_z[np], long double rdp[ncon], long double rd2p[ncon], long double rc_x[np*ncon], long double rc_y[np*ncon], long double rc_z[np*ncon], long double bc[3][3], long double rposcor_x[ncon], long double rposcor_y[ncon], long double rposcor_z[ncon]) {
     
     int i, j, k, np0 = 0;
+    int counter[ncon];
     char type_str[5], msd_corr_file[30] = "msd_corr_", msd_file[30] = "msd_";
     
     sprintf(type_str, "%u", type);
@@ -28,71 +29,71 @@ void particle_i(int type, int ncon, int np, int N_components, int np_i[N_compone
     strcat(msd_corr_file, ".dat");
     strcat(msd_file, type_str);
     strcat(msd_file, ".dat");
-    
+
+    // Compute index range for this particle type
     for (i = 0; i < type; i++)
         np0 += np_i[i];
     
     int npf = np0 + np_i[type];
-    
+
     printf("Type %u with np0 = %u and npf = %u\n", type, np0, npf);
+
+    // Initialize arrays
     for (i = 0; i < ncon; i++) {
-        rdp[i] = 0;
-        rd2p[i] = 0;
-    }
-    
-    for (k = 0; k < ntimes; k++)
-        for (j = k; j < nconcort+k; j++)
-            for (i = np0; i < npf; i++) {
-                long double r2 = powl(rc_x[i*ncon + j] - rc_x[i*ncon + k], 2) + powl(rc_y[i*ncon + j] - rc_y[i*ncon + k], 2) + powl(rc_z[i*ncon + j] - rc_z[i*ncon + k], 2);
-                
-                rdp[j-k] += r2;
-                rd2p[j-k] += r2 * r2;
-            }
-    
-    long double aux = 1.0 / (float) ((npf - np0) * ntimes);
-    for (i = 0; i < nconcort; i++) {
-        rdp[i] *= aux;
-        rd2p[i] *= aux;
-    }
-    
-    for (i = 0; i < ncon; i++) {
+        rdp[i]       = 0;
+        rd2p[i]      = 0;
         rposcor_x[i] = 0;
         rposcor_y[i] = 0;
         rposcor_z[i] = 0;
+        counter[i]   = 0;
     }
-    
-    for (k = 0; k < (ncon-nposcor); k++) {
-        for (j = k; j < nposcor+k; j++) {
+
+    // Average over all possible windows
+    for (k = 0; k < ncon; k++)
+        for (j = k+1; j < ncon; j++)
             for (i = np0; i < npf; i++) {
+                long double r2 = powl(rc_x[i*ncon + j] - rc_x[i*ncon + k], 2) + powl(rc_y[i*ncon + j] - rc_y[i*ncon + k], 2) + powl(rc_z[i*ncon + j] - rc_z[i*ncon + k], 2);
+                
+                rdp[j-k]  += r2;
+                rd2p[j-k] += r2 * r2;
+                counter[j-k]++;
+
                 rposcor_x[j-k] += (rc_x[i*ncon + j] - rperfc_x[i]) * (rc_x[i*ncon + k] - rperfc_x[i]);
                 rposcor_y[j-k] += (rc_y[i*ncon + j] - rperfc_y[i]) * (rc_y[i*ncon + k] - rperfc_y[i]);
                 rposcor_z[j-k] += (rc_z[i*ncon + j] - rperfc_z[i]) * (rc_z[i*ncon + k] - rperfc_z[i]);
             }
+
+    // Normalize MSD, second moment and position correlation
+    for (i = 1; i < ncon; i++)
+        if (counter[i] > 0) {
+            rdp[i]       *= (powl(scale, 2) / counter[i]);
+            rd2p[i]      *= (powl(scale, 4) / counter[i]);
+            rposcor_x[i] *= (powl(scale, 2) / counter[i]);
+            rposcor_y[i] *= (powl(scale, 2) / counter[i]);
+            rposcor_z[i] *= (powl(scale, 2) / counter[i]);
         }
-        //printf("%u %lf %lf\n", k, rc_x[k], rperfc_x[0]);
-    }
-    
-    FILE *msd_corr;
-    if ((msd_corr = fopen(msd_corr_file, "w")) == NULL)
-        ExitError("The msd_corr data file cannot be opened", 9);
-    
-    aux = scale * scale / ((float) ((npf - np0) * (ncon-nposcor)));
-    for (i = 0; i < nposcor; i++) {
-        rposcor_x[i] *= aux;
-        rposcor_y[i] *= aux;
-        rposcor_z[i] *= aux;
-        
-        fprintf(msd_corr, "%u %.19Lf\n", i, rposcor_x[i] + rposcor_y[i] + rposcor_z[i]);
-    } fclose(msd_corr);
-    
+
+    // --- Write MSD and variance ---
     FILE *msd;
     if ((msd = fopen(msd_file, "w")) == NULL)
-        ExitError("The msd data file cannot be opened", 10);
-    
-    aux = scale * scale;
-    for (i = 0; i < nconcort; i++) {
-        fprintf(msd, "%u %.19Lf %.19Lf\n", i, (rdp[i] * aux), sqrtl((rd2p[i] - (rdp[i] * rdp[i])) / ((float) (ntimes-1))) * aux);
+        ExitError("The msd data file cannot be opened", 9);
+
+    for (i = 0; i < ncon; i++) {
+        long double variance = 0;
+        if (counter[i] > 1)
+            variance = sqrtl((rd2p[i] - (rdp[i] * rdp[i])) / (counter[i]-1));
+
+        fprintf(msd, "%u %.19Lf %.19Lf\n", i, rdp[i], variance);
     } fclose(msd);
+
+    // --- Write position correlation ---
+    FILE *msd_corr;
+    if ((msd_corr = fopen(msd_corr_file, "w")) == NULL)
+        ExitError("The msd_corr data file cannot be opened", 10);
+    
+    for (i = 0; i < ncon; i++) {
+        fprintf(msd_corr, "%u %.19Lf\n", i, rposcor_x[i] + rposcor_y[i] + rposcor_z[i]);
+    } fclose(msd_corr);
 }
 
 bool valid_str(const char* str) {
@@ -161,7 +162,6 @@ int main() {
     printf("NPT: %u\n", np);
     printf("NCON: %u\n", ncon);
     
-    int nconcort = 0.5 * ncon, nposcor = 0.5 * ncon, ntimes = ncon - nconcort;
     long double rperf_x[np], rperf_y[np], rperf_z[np], rperfc_x[np], rperfc_y[np], rperfc_z[np], rdp[ncon], rd2p[ncon], bc[3][3], rposcor_x[ncon], rposcor_y[ncon], rposcor_z[ncon];
     long double *r_x, *r_y, *r_z, *rc_x, *rc_y, *rc_z;
     
@@ -329,5 +329,6 @@ int main() {
     // -----------------------------------------------------------
     
     for (i = 0; i < N_components; i++)
-        particle_i(i, ncon, np, N_components, np_i, ntimes, scale, nconcort, nposcor, r_x, r_y, r_z, rperf_x, rperf_y, rperf_z, rperfc_x, rperfc_y, rperfc_z, rdp, rd2p, rc_x, rc_y, rc_z, bc, rposcor_x, rposcor_y, rposcor_z);
+        particle_i(i, ncon, np, N_components, np_i, scale, r_x, r_y, r_z, rperf_x, rperf_y, rperf_z, rperfc_x, rperfc_y, rperfc_z, rdp, rd2p, rc_x, rc_y, rc_z, bc, rposcor_x, rposcor_y, rposcor_z);
 }
+

@@ -1,6 +1,7 @@
 import numpy             as np
 import matplotlib.pyplot as plt
 import scipy.odr         as odr
+import json
 
 from os             import system, getcwd, chdir, path
 from scipy.fftpack  import fft, fftfreq
@@ -292,7 +293,7 @@ def get_mean_square_displacement(path_to_msd, path_to_DBL='.'):
             sys.exit('Error: Mean_square_displacement.c file does not exist.')
 
         # Compile executable
-        system(f'gcc Mean_square_displacement.c -o msd.exe -lm')
+        system(f'gcc mean_square_displacement.c -o msd.exe -lm')
 
     # Copy msd executable
     system(f'cp {path_to_DBL}/msd.exe {cp_path_to_msd}')
@@ -308,7 +309,7 @@ def linear_function(beta, x):
     return beta[0] + 6 * x * beta[1] 
 
 
-def weighted_regression(x, y, function, xerr=None, yerr=None, beta0=[1, 1e-5]):
+def weighted_regression(x, y, function, xerr=None, yerr=None, beta0=[0, 1e-5]):
     model = odr.Model(function)
     
     wd = None; we = None
@@ -320,7 +321,7 @@ def weighted_regression(x, y, function, xerr=None, yerr=None, beta0=[1, 1e-5]):
     return odr_model.run()
 
 
-def get_diffusion_coefficient(path_to_msd, path_to_DBL='.', initial_point=None, DiffTypeName=None):
+def get_diffusion_coefficient(path_to_msd, path_to_DBL='.', t0=0, tf=20, DiffTypeName=None):
     """
     The initial point for the linear fit is selected as the one that minimizes uncertainty of the diffusion coefficient.
     """
@@ -367,6 +368,7 @@ def get_diffusion_coefficient(path_to_msd, path_to_DBL='.', initial_point=None, 
     # Generating the diffusion coefficients for each component
 
     fig, ax = plt.subplots(rows, 2, figsize=(5 * 2, 5 * rows))
+    diffusion_coefficients = {}
     for i in range(n_components):
         element = composition[i]
 
@@ -379,16 +381,23 @@ def get_diffusion_coefficient(path_to_msd, path_to_DBL='.', initial_point=None, 
             print(f'Hey, hope you know what you are doing, msd_{i} is missing!')
             continue
         
-        # Looking for the initial point
-        t0 = int(0.1 * len(data))
-        if initial_point is not None:
-            t0 = int(initial_point * len(data))
+        # Looking for the initial and ending points in ps
+        try:
+            idx0 = np.where(data[:, 0] * temporal_factor <= t0)[0][-1]
+        except:
+            idx0 = 0
+        try:
+            idxf = np.where(data[:, 0] * temporal_factor >= tf)[0][0]
+        except:
+            idxf = -1
         
-        x    = data[t0:, 0] * temporal_factor
-        y    = data[t0:, 1]
-        yerr = data[t0:, 2]
+        x    = data[idx0:idxf, 0] * temporal_factor
+        y    = data[idx0:idxf, 1]
+        yerr = data[idx0:idxf, 2]
         
         _beta_ = weighted_regression(x, y, linear_function, yerr=yerr).beta
+        
+        diffusion_coefficients.update({element: _beta_[1]})
 
         image_index = column
         if n_components > 2:
@@ -396,25 +405,19 @@ def get_diffusion_coefficient(path_to_msd, path_to_DBL='.', initial_point=None, 
         
         ax[image_index].errorbar(x, y, yerr=yerr, label='Data')
         ax[image_index].plot(x, linear_function(_beta_, x), label=u'Linear fitting')
-
-        # Calculating the mean square displacement for the non-diffusive atoms
+        ax[image_index].set_xlabel(r'$\Delta t$ (ps)')
+        ax[image_index].set_ylabel('MSD (Å²)')
+        ax[image_index].set_xlim(left=-0.1)
+        ax[image_index].set_ylim(bottom=-0.1)
         
-        #title = f'{element}: y_0 = {_beta_[0]:.3g}, D = {_beta_[1]:.3g}'
-        title = f'{element}: D = {_beta_[1]}'
-        if element == 'O':
-            np.savetxt(f'{path_to_msd}/CoefD.txt', [_beta_[1]])
-        
-        if composition[i] not in DiffTypeName:
-            n_NonDiff        += concentration[i]
-            mean_NonDiff_msd += concentration[i] * np.mean(y)
-
-        ax[image_index].set_title(title)
+        ax[image_index].set_title(f'{element}: D = {_beta_[1]}')
         ax[image_index].legend(loc='best')
+
+    with open(f'{path_to_msd}/diffusion_coefficients.json', 'w') as json_file:
+        json.dump(diffusion_coefficients, json_file)
+    
     plt.savefig(f'{path_to_msd}/diffusion_coefficient.pdf', dpi=50, bbox_inches='tight')
     plt.show()
-
-    mean_NonDiff_msd /= n_NonDiff
-    print(f'Mean non-diffusive msd: {mean_NonDiff_msd}')
 
 
 def get_diffusion_coefficient_values(path_to_msd, path_to_DBL='.', initial_point=None):
