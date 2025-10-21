@@ -8,33 +8,26 @@ from scipy.fftpack  import fft, fftfreq
 
 k_B = 8.617333262145e-2  # meV / K
 
-
 # Vibrational properties
-
 
 def normalized_trapezoidal_integral(x, fx, rho):
     return np.trapz(fx * rho, x) / np.trapz(rho, x)
-
 
 def calculate_harmonic_phonon_energy(omega, temperature):
     auxiliary = omega / (k_B * temperature)
     return omega * (0.5 + 1 / (np.exp(auxiliary) - 1))
 
-
 def calculate_constant_volume_heat_capacity(omega, temperature):
     auxiliary = omega / (k_B * temperature)
     return k_B * np.power(auxiliary, 2) * np.exp(auxiliary) / np.power(np.exp(auxiliary) - 1, 2)
-
 
 def calculate_helmholtz_free_energy(omega, temperature):
     auxiliary = omega / (k_B * temperature)
     return 0.5 * omega + k_B * temperature * np.log(1 - np.exp(- auxiliary))
 
-
 def calculate_entropy(omega, temperature):
     auxiliary = omega / (k_B * temperature)
     return omega / (2 * temperature * np.tanh(0.5 * auxiliary)) - k_B * np.log(2 * np.sinh(0.5 * auxiliary))
-
 
 def getVPROP(path_to_folder, omega_data, rho_omega_data, temperature):
     # Until 30 meV
@@ -74,44 +67,6 @@ def getVPROP(path_to_folder, omega_data, rho_omega_data, temperature):
     integral = normalized_trapezoidal_integral(omega_data, entropy, rho_omega_data)
     S = integral
     return w30, w, hp, Cv, Fv, S
-
-
-# Diffusion coefficient
-
-
-def obtain_diffusive_information(composition, concentration, DiffTypeName=None):
-    """
-    Gets the diffusive and non-diffusive elements.
-    Various diffusive elements are allowed. In that case, they shall be specified in DiffTypeName.
-    """
-
-    if not DiffTypeName:
-        # Getting the diffusive element following the implicit order of preference
-
-        for diff_component in ['Li', 'Na', 'Ag', 'Cu', 'Cl', 'I', 'Br', 'F', 'O']:
-            if diff_component in composition:
-                DiffTypeName = [diff_component]
-                if (diff_component == 'I') and ('Br' in composition):
-                    DiffTypeName = ['I', 'Br']
-                break
-
-    NonDiffTypeName = composition.copy()
-    for diff_element in DiffTypeName:
-        NonDiffTypeName.remove(diff_element)
-
-    # Getting the positions of the diffusive elements regarding the XDATCAR file
-
-    diffusion_information = []
-    for DiffTypeName_value in DiffTypeName:
-        for TypeName_index in range(len(composition)):
-            if composition[TypeName_index] == DiffTypeName_value:
-                diffusion_information.append([TypeName_index, np.sum(concentration[:TypeName_index]),
-                                              concentration[TypeName_index]])
-    return DiffTypeName, NonDiffTypeName, diffusion_information
-
-
-# Main functionalities
-
 
 def get_VACF_VDOS(path_to_folder, DiffTypeName=None, unit='meV'):
     """
@@ -265,7 +220,6 @@ def get_VACF_VDOS(path_to_folder, DiffTypeName=None, unit='meV'):
         np.savetxt(f'{path_to_folder}/VDOS{name}.dat', np.column_stack((xVDOS, yVDOS)))
     plt.show()
 
-
 def get_vibrational_properties(path_to_folder, temperature, data=''):
     """
     Extracts temperature from a simple summary file.
@@ -276,7 +230,6 @@ def get_vibrational_properties(path_to_folder, temperature, data=''):
     VDOS_data = np.loadtxt(f'{path_to_folder}/VDOS{data}.dat')
     results = getVPROP(path_to_folder, VDOS_data[:, 0], VDOS_data[:, 1], temperature)
     return results
-
 
 def get_mean_square_displacement(path_to_msd, path_to_DBL='.'):
     """
@@ -304,12 +257,12 @@ def get_mean_square_displacement(path_to_msd, path_to_DBL='.'):
     system(f'./msd.exe')
     chdir(current_dir)
 
+# Diffusion coefficient
 
 def linear_function(beta, x):
     return beta[0] + 6 * x * beta[1] 
 
-
-def weighted_regression(x, y, function, xerr=None, yerr=None, beta0=[0, 1e-5]):
+def weighted_regression(x, y, function, xerr=None, yerr=None, beta0=[0, 1e-2]):
     model = odr.Model(function)
     
     wd = None; we = None
@@ -351,30 +304,16 @@ def get_diffusion_coefficient(path_to_msd, path_to_DBL='.', t0=0, tf=20, DiffTyp
     concentration = np.array(POSCAR_lines[6].split(), dtype=int)
     n_components  = len(composition)
 
-    # Calculating the diffusive and non-diffusive elements
-
-    DiffTypeName, _, diffusion_information = obtain_diffusive_information(composition, concentration,
-                                                                          DiffTypeName=DiffTypeName)
-
-    n_NonDiff        = 0
-    mean_NonDiff_msd = 0
-
-    rows = int(np.ceil(0.5 * n_components))
-    
     # Generate msd information
     if not path.exists(f'{path_to_msd}/msd_0.dat'):
         get_mean_square_displacement(path_to_msd, path_to_DBL)
     
     # Generating the diffusion coefficients for each component
 
-    fig, ax = plt.subplots(rows, 2, figsize=(5 * 2, 5 * rows))
     diffusion_coefficients = {}
     for i in range(n_components):
         element = composition[i]
 
-        row = int(i / 2)
-        column = int(i % 2)
-        
         if path.exists(f'{path_to_msd}/msd_{i}.dat'):
             data = np.loadtxt(f'{path_to_msd}/msd_{i}.dat')
         else:
@@ -395,134 +334,26 @@ def get_diffusion_coefficient(path_to_msd, path_to_DBL='.', t0=0, tf=20, DiffTyp
         y    = data[idx0:idxf, 1]
         yerr = data[idx0:idxf, 2]
         
-        _beta_ = weighted_regression(x, y, linear_function, yerr=yerr).beta
+        #_beta_ = weighted_regression(x, y, linear_function, yerr=yerr).beta
+        _beta_ = weighted_regression(x, y, linear_function, yerr=None).beta
         
         diffusion_coefficients.update({element: _beta_[1]})
+        
+        plt.plot(x, linear_function(_beta_, x), ':')
 
-        image_index = column
-        if n_components > 2:
-            image_index = (row, column)
+        x    = data[:idxf, 0] * temporal_factor
+        y    = data[:idxf, 1]
+        yerr = data[:idxf, 2]
         
-        ax[image_index].errorbar(x, y, yerr=yerr, label='Data')
-        ax[image_index].plot(x, linear_function(_beta_, x), label=u'Linear fitting')
-        ax[image_index].set_xlabel(r'$\Delta t$ (ps)')
-        ax[image_index].set_ylabel('MSD (Å²)')
-        ax[image_index].set_xlim(left=-0.1)
-        ax[image_index].set_ylim(bottom=-0.1)
-        
-        ax[image_index].set_title(f'{element}: D = {_beta_[1]}')
-        ax[image_index].legend(loc='best')
+        plt.errorbar(x, y, yerr=yerr, label=f'{element}: {_beta_[1]:.2g}')
 
     with open(f'{path_to_msd}/diffusion_coefficients.json', 'w') as json_file:
         json.dump(diffusion_coefficients, json_file)
     
+    plt.xlabel(r'$\Delta t$ (ps)')
+    plt.ylabel('MSD (Å²)')
+    plt.xlim(left=0)
+    plt.ylim(bottom=0)
+    plt.legend(loc='best')
     plt.savefig(f'{path_to_msd}/diffusion_coefficient.pdf', dpi=50, bbox_inches='tight')
     plt.show()
-
-
-def get_diffusion_coefficient_values(path_to_msd, path_to_DBL='.', initial_point=None):
-    """
-    The initial point for the linear fit is selected as the one that minimizes uncertainty of the diffusion coefficient.
-    """
-
-    # Intervals step and number of simulation steps between records
-
-    with open(f'{path_to_msd}/INCAR', 'r') as INCAR_file:
-        INCAR_lines = INCAR_file.readlines()
-
-    for line in INCAR_lines:
-        split_line = line.split('=')
-        if len(split_line) > 1:  # Skipping empty lines
-            label = split_line[0].split()[0]
-            value = split_line[1].split()[0]
-
-            if label == 'POTIM':
-                delta_t = float(value)
-            elif label == 'NBLOCK':
-                n_steps = float(value)
-
-    temporal_factor = delta_t * n_steps / 1000  # In pico-seconds
-
-    # Importing the POSCAR file
-
-    with open(f'{path_to_msd}/POSCAR', 'r') as POSCAR_file:
-        POSCAR_lines = POSCAR_file.readlines()
-
-    composition   = POSCAR_lines[5].split()
-    concentration = np.array(POSCAR_lines[6].split(), dtype=int)
-    n_components  = len(composition)
-    
-    _, _, diffusion_information = obtain_diffusive_information(composition, concentration)
-    
-    # Generate msd information
-    if not path.exists(f'{path_to_msd}/msd_0.dat'):
-        get_mean_square_displacement(path_to_msd, path_to_DBL)
-
-    # Generating the diffusion coefficients for each component
-    i = diffusion_information[0][0]
-    print(composition[i])
-    if path.exists(f'{path_to_msd}/msd_{i}.dat'):
-        data = np.loadtxt(f'{path_to_msd}/msd_{i}.dat')
-    else:
-        print(f'Hey, hope you know what you are doing, msd_{i} is missing!')
-
-    x    = data[:, 0] * temporal_factor
-    y    = data[:, 1]
-    yerr = data[:, 2]
-
-    # Looking for the initial point
-
-    if initial_point is None:
-        initial_point = int(0.1 * len(x))
-    else:
-        initial_point = int(initial_point * len(x))
-
-    x_fit    = x[initial_point:]
-    y_fit    = y[initial_point:]
-    yerr_fit = yerr[initial_point:]
-
-    _beta_ = weighted_regression(x_fit, y_fit, linear_function, yerr=yerr_fit).beta
-    return _beta_[1]
-
-
-def get_band_gap(path):
-    """
-    """
-
-
-def get_vacancy_energy(path):
-    """
-    """
-
-
-def get_macroscopic_dielectric_constant(path):
-    """
-    """
-
-
-def get_Born_effective_charge(path):
-    """
-    """
-
-
-def get_first_optical_phonon_mode(path_to_OUTCAR):
-    """
-    First (smallest) optical phonon frequency: fourth-smallest phonon frequency (the previous three ones are acoustic).
-    """
-
-    # Importing the OUTCAR file
-
-    with open(f'{path_to_OUTCAR}/OUTCAR', 'r') as OUTCAR_file:
-        OUTCAR_lines = OUTCAR_file.readlines()
-
-    # Checking for the lines with imaginary (negative) phonon frequencies
-
-    phonon_frequencies = []
-    for line in OUTCAR_lines:
-        try:
-            split_line = line.split()
-            if (split_line[1] == 'f' | split_line[1] == 'f/i='):
-                phonon_frequencies.append([float(split_line[-2])])
-        except IndexError:
-            pass
-    return np.sort(phonon_frequencies)[3]
