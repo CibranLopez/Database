@@ -311,9 +311,7 @@ def get_diffusion_coefficient(path_to_msd, path_to_DBL='.', t0=0, tf=20, DiffTyp
     # Generating the diffusion coefficients for each component
 
     diffusion_coefficients = {}
-    for i in range(n_components):
-        element = composition[i]
-
+    for i, element in enumerate(composition):
         if path.exists(f'{path_to_msd}/msd_{i}.dat'):
             data = np.loadtxt(f'{path_to_msd}/msd_{i}.dat')
         else:
@@ -329,22 +327,22 @@ def get_diffusion_coefficient(path_to_msd, path_to_DBL='.', t0=0, tf=20, DiffTyp
             idxf = np.where(data[:, 0] * temporal_factor >= tf)[0][0]
         except:
             idxf = -1
+
+        x = data[:idxf, 0] * temporal_factor
+        y = data[:idxf, 1]
+        yerr = data[:idxf, 2]
+
+        x_fit    = data[idx0:idxf, 0] * temporal_factor
+        y_fit    = data[idx0:idxf, 1]
+        yerr_fit = data[idx0:idxf, 2]
         
-        x    = data[idx0:idxf, 0] * temporal_factor
-        y    = data[idx0:idxf, 1]
-        yerr = data[idx0:idxf, 2]
-        
-        #_beta_ = weighted_regression(x, y, linear_function, yerr=yerr).beta
-        _beta_ = weighted_regression(x, y, linear_function, yerr=None).beta
-        
+        #_beta_ = weighted_regression(x_fit, y_fit, linear_function, yerr=yerr_fit).beta
+        _beta_ = weighted_regression(_fitx, y_fit, linear_function, yerr=None).beta
+
+        # Update in json
         diffusion_coefficients.update({element: _beta_[1]})
         
         plt.plot(x, linear_function(_beta_, x), ':')
-
-        x    = data[:idxf, 0] * temporal_factor
-        y    = data[:idxf, 1]
-        yerr = data[:idxf, 2]
-        
         plt.errorbar(x, y, yerr=yerr, label=f'{element}: {_beta_[1]:.2g}')
 
     with open(f'{path_to_msd}/diffusion_coefficients.json', 'w') as json_file:
